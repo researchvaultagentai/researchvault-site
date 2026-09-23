@@ -1,0 +1,2 @@
+# SPA-like fallback for 404
+/researchvaultagent.ir/*  /index.html  404

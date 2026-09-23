@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ResearchVaultAgent — دسترسی سریع به مقالات علمی از منابع معتبر Open Access. دریافت فوری PDF مقالات از طریق ربات تلگرام.">
+  <meta name="theme-color" content="#2563eb">
+  <title>ResearchVaultAgent — دسترسی سریع به مقالات علمی</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
+</head>
+<body>
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="container hero__inner">
+      <div>
+        <div class="hero__badge">
+          <span class="hero__badge-dot"></span>
+          <span data-i18n="hero.badge"></span>
+        </div>
+        <h1 class="hero__title">
+          <span data-i18n="hero.title1"></span><br>
+          <span class="hero__title-accent" data-i18n="hero.title2"></span>
+        </h1>
+        <p class="hero__subtitle" data-i18n="hero.subtitle"></p>
+        <div class="hero__actions">
+          <a href="https://t.me/ResearchVaultAgentBot" target="_blank" rel="noopener" class="btn btn--primary btn--lg">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+            </svg>
+            <span data-i18n="hero.cta"></span>
+          </a>
+          <a href="pricing.html" class="btn btn--secondary btn--lg">
+            <span data-i18n="hero.cta2"></span>
+          </a>
+        </div>
+      </div>
+
+      <div class="hero__mockup">
+        <img src="assets/banner.png" alt="ResearchVaultAgent" class="hero__banner" />
+        <div class="mockup-chat">
+          <div class="mockup-bubble mockup-bubble--user" data-i18n="mockup.user"></div>
+          <div class="mockup-bubble mockup-bubble--bot" data-i18n="mockup.bot"></div>
+        </div>
+        <div class="mockup-file">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span data-i18n="mockup.file"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FEATURES ============ -->
+  <section class="section">
+    <div class="container">
+      <div class="features__head">
+        <div class="section-label" data-i18n="features.label"></div>
+        <h2 class="section-title" data-i18n="features.title"></h2>
+        <p class="section-subtitle" data-i18n="features.subtitle"></p>
+      </div>
+
+      <div class="features__grid">
+        <div class="feature">
+          <div class="feature__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+          <h3 class="feature__title" data-i18n="feature1.title"></h3>
+          <p class="feature__text" data-i18n="feature1.text"></p>
+        </div>
+
+        <div class="feature">
+          <div class="feature__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </div>
+          <h3 class="feature__title" data-i18n="feature2.title"></h3>
+          <p class="feature__text" data-i18n="feature2.text"></p>
+        </div>
+
+        <div class="feature">
+          <div class="feature__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="1" x2="12" y2="23"/>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <h3 class="feature__title" data-i18n="feature3.title"></h3>
+          <p class="feature__text" data-i18n="feature3.text"></p>
+        </div>
+
+        <div class="feature">
+          <div class="feature__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <h3 class="feature__title" data-i18n="feature4.title"></h3>
+          <p class="feature__text" data-i18n="feature4.text"></p>
+        </div>
+
+        <div class="feature">
+          <div class="feature__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+          </div>
+          <h3 class="feature__title" data-i18n="feature5.title"></h3>
+          <p class="feature__text" data-i18n="feature5.text"></p>
+        </div>
+
+        <div class="feature">
+          <div class="feature__icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <h3 class="feature__title" data-i18n="feature6.title"></h3>
+          <p class="feature__text" data-i18n="feature6.text"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STEPS ============ -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="features__head">
+        <div class="section-label" data-i18n="steps.label"></div>
+        <h2 class="section-title" data-i18n="steps.title"></h2>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <h3 class="step__title" data-i18n="step1.title"></h3>
+          <p class="step__text" data-i18n="step1.text"></p>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <h3 class="step__title" data-i18n="step2.title"></h3>
+          <p class="step__text" data-i18n="step2.text"></p>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <h3 class="step__title" data-i18n="step3.title"></h3>
+          <p class="step__text" data-i18n="step3.text"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRUST ============ -->
+  <section class="section">
+    <div class="container">
+      <div class="trust">
+        <div class="trust__item">
+          <div class="trust__num">40+</div>
+          <div class="trust__label" data-i18n="trust1.label"></div>
+        </div>
+        <div class="trust__item">
+          <div class="trust__num">1000+</div>
+          <div class="trust__label" data-i18n="trust2.label"></div>
+        </div>
+        <div class="trust__item">
+          <div class="trust__num">99.9%</div>
+          <div class="trust__label" data-i18n="trust3.label"></div>
+        </div>
+        <div class="trust__item">
+          <div class="trust__num">24/7</div>
+          <div class="trust__label" data-i18n="trust4.label"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRICING PREVIEW ============ -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="features__head">
+        <div class="section-label" data-i18n="pricing.label"></div>
+        <h2 class="section-title" data-i18n="pricing.title"></h2>
+        <p class="section-subtitle" data-i18n="pricing.subtitle"></p>
+      </div>
+
+      <div class="pricing-preview">
+        <div class="plan-card">
+          <div class="plan__credits">11</div>
+          <div class="plan__label" data-i18n="pricing.credits"></div>
+          <div class="plan__price">
+            <div class="plan__price-en">$1</div>
+            <div class="plan__price-fa">≈ ۲۳۱,۳۰۰ تومان</div>
+          </div>
+        </div>
+        <div class="plan-card plan-card--popular">
+          <div class="plan__credits">60</div>
+          <div class="plan__label" data-i18n="pricing.credits"></div>
+          <div class="plan__price">
+            <div class="plan__price-en">$5</div>
+            <div class="plan__price-fa">≈ ۱,۱۵۶,۵۰۰ تومان</div>
+          </div>
+        </div>
+        <div class="plan-card">
+          <div class="plan__credits">120</div>
+          <div class="plan__label" data-i18n="pricing.credits"></div>
+          <div class="plan__price">
+            <div class="plan__price-en">$10</div>
+            <div class="plan__price-fa">≈ ۲,۳۱۳,۰۰۰ تومان</div>
+          </div>
+        </div>
+        <div class="plan-card">
+          <div class="plan__credits">240</div>
+          <div class="plan__label" data-i18n="pricing.credits"></div>
+          <div class="plan__price">
+            <div class="plan__price-en">$20</div>
+            <div class="plan__price-fa">≈ ۴,۶۲۶,۰۰۰ تومان</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center">
+        <a href="pricing.html" class="btn btn--secondary">
+          <span data-i18n="pricing.cta"></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section class="section">
+    <div class="container">
+      <div class="features__head">
+        <div class="section-label" data-i18n="faq.label"></div>
+        <h2 class="section-title" data-i18n="faq.title"></h2>
+      </div>
+
+      <div class="faq">
+        <details class="faq__item">
+          <summary class="faq__question" data-i18n="faq1.q"></summary>
+          <div class="faq__answer" data-i18n="faq1.a"></div>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__question" data-i18n="faq2.q"></summary>
+          <div class="faq__answer" data-i18n="faq2.a"></div>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__question" data-i18n="faq3.q"></summary>
+          <div class="faq__answer" data-i18n="faq3.a"></div>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__question" data-i18n="faq4.q"></summary>
+          <div class="faq__answer" data-i18n="faq4.a"></div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CTA ============ -->
+  <section class="section">
+    <div class="container">
+      <div class="cta-banner">
+        <h2 class="cta-banner__title" data-i18n="cta.title"></h2>
+        <p class="cta-banner__text" data-i18n="cta.text"></p>
+        <a href="https://t.me/ResearchVaultAgentBot" target="_blank" rel="noopener" class="btn btn--primary btn--lg">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/>
+          </svg>
+          <span data-i18n="cta.btn"></span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

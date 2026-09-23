@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>صفحه پیدا نشد — ResearchVaultAgent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .notfound {
+      min-height: 60vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px 24px;
+    }
+    .notfound__code {
+      font-size: 6rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+    .notfound__title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .notfound__text {
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      max-width: 480px;
+      margin-inline: auto;
+    }
+    .notfound__actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="notfound">
+    <div>
+      <div class="notfound__code">404</div>
+      <h1 class="notfound__title">صفحه پیدا نشد</h1>
+      <p class="notfound__text">
+        متأسفانه صفحه‌ای که به دنبال آن هستید وجود ندارد یا حذف شده است.
+      </p>
+      <div class="notfound__actions">
+        <a href="index.html" class="btn btn--primary">بازگشت به صفحه اصلی</a>
+        <a href="https://t.me/ResearchVaultAgentBot" target="_blank" rel="noopener" class="btn btn--secondary">شروع در تلگرام</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
