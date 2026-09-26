@@ -97,7 +97,58 @@ const I18N = {
   "pricing.credits": { fa: "اعتبار", en: "credits" },
   "pricing.usd": { fa: "دلار", en: "USD" },
   "pricing.popular": { fa: "محبوب", en: "POPULAR" },
-
+       "pricing.buy": {
+      fa: "خرید از ربات",
+      en: "Buy from bot"
+    },
+    "pricing.notice.title": {
+      fa: "نکته مهم:",
+      en: "Important:"
+    },
+    "pricing.notice.text": {
+      fa: "هر اعتبار معادل یک مقاله موفق است. اگر مقاله‌ای پیدا نشود یا با مشکل مواجه شود، هیچ اعتباری کسر نمی‌شود. قیمت‌های تومانی بر اساس نرخ لحظه‌ای دلار محاسبه شده و ممکن است کمی متفاوت باشد.",
+      en: "Each credit equals one successful paper. No credit is deducted if a paper is not found or fails. Toman prices are calculated at the live USD rate and may differ slightly."
+    },
+    "pricing.payment.title": {
+      fa: "روش‌های پرداخت",
+      en: "Payment Methods"
+    },
+    "pricing.payment.stars.label": {
+      fa: "استارز تلگرام (⭐):",
+      en: "Telegram Stars (⭐):"
+    },
+    "pricing.payment.stars.text": {
+      fa: "پرداخت سریع از داخل ربات، بدون نیاز به درگاه بانکی.",
+      en: "Fast payment from within the bot — no bank gateway needed."
+    },
+    "pricing.payment.rial.label": {
+      fa: "ریال ایران (زرین‌پال):",
+      en: "Iranian Rial (ZarinPal):"
+    },
+    "pricing.payment.rial.text": {
+      fa: "پرداخت از طریق درگاه امن زرین‌پال با تمام کارت‌های شتاب.",
+      en: "Payment via the secure ZarinPal gateway with all Shetab cards."
+    },
+    "pricing.usage.title": {
+      fa: "نحوه استفاده از اعتبار",
+      en: "How to Use Credits"
+    },
+    "pricing.usage.step1": {
+      fa: "در تلگرام ربات را استارت کنید.",
+      en: "Start the bot on Telegram."
+    },
+    "pricing.usage.step2": {
+      fa: "DOI، عنوان مقاله یا لینک ناشر را ارسال کنید.",
+      en: "Send the DOI, article title, or publisher link."
+    },
+    "pricing.usage.step3": {
+      fa: "ربات به‌صورت خودکار مقاله را جستجو و برایتان ارسال می‌کند.",
+      en: "The bot automatically finds and sends the paper."
+    },
+    "pricing.usage.step4": {
+      fa: "فقط پس از تحویل موفق، ۱ اعتبار کسر می‌شود.",
+      en: "Only 1 credit is deducted after successful delivery."
+    },
   // ---- Trust ----
   "trust1.label": { fa: "منبع علمی", en: "scholarly sources" },
   "trust2.label": { fa: "مقاله تحویل شده", en: "papers delivered" },
