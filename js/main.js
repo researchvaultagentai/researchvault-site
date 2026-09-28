@@ -350,8 +350,14 @@ function injectFooter() {
       </div>
       <div class="footer__bottom">
         <div>© 2026 ResearchVaultAgent — <span data-i18n="footer.rights"></span></div>
-        <div>
-          Mojavez: <code>I17879267</code>
+                <div class="footer__enamad">
+          <iframe
+            src="https://trustseal.enamad.ir/?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH"
+            style="border:none; width:125px; height:125px; cursor:pointer; background:transparent;"
+            referrerpolicy="origin"
+            scrolling="no"
+            title="نماد اعتماد الکترونیکی"
+          ></iframe>
         </div>
       </div>
     </div>
