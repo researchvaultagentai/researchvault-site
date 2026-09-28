@@ -1125,7 +1125,7 @@ html[dir="ltr"] .plan-card--popular::before {
   align-items: center;
   justify-content: center;
   padding: 8px;
-  background: white;
+  background: #ffffff;
   border-radius: var(--radius-sm);
   transition: all var(--transition);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
