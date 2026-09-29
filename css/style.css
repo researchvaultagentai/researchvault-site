@@ -1129,8 +1129,8 @@ html[dir="ltr"] .plan-card--popular::before {
   border-radius: var(--radius-sm);
   transition: all var(--transition);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  min-width: 100px;
-  min-height: 100px;
+  min-width: 125px;
+  min-height: 125px;
 }
 
 .footer__enamad:hover {
@@ -1138,9 +1138,16 @@ html[dir="ltr"] .plan-card--popular::before {
   box-shadow: 0 8px 20px rgba(6, 182, 212, 0.3);
 }
 
+.footer__enamad a {
+  display: block;
+  width: 125px;
+  height: 125px;
+}
+
 .footer__enamad img {
   display: block;
-  max-width: 125px;
-  height: auto;
+  width: 125px;
+  height: 125px;
   border: none;
+  object-fit: contain;
 }
