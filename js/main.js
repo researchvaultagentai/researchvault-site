@@ -1,6 +1,7 @@
 /* ============================================================
    ResearchVaultAgent — Main Script
    i18n + Header + Footer injection
+   SEO-optimized: includes "Research Vault" brand variants in visible text
    ============================================================ */
 
 // ==================== i18n Dictionary ====================
@@ -18,8 +19,8 @@ const I18N = {
   "hero.title1": { fa: "دسترسی آسان به", en: "Easy access to" },
   "hero.title2": { fa: "مقالات علمی معتبر", en: "trusted research papers" },
   "hero.subtitle": {
-    fa: "کافیست DOI، عنوان مقاله، یا لینک ناشر را ارسال کنید. ربات ResearchVaultAgent به‌صورت خودکار منابع معتبر Open Access را بررسی کرده و فایل PDF کامل را تحویل می‌دهد.",
-    en: "Just send the DOI, article title, or publisher link. ResearchVaultAgent automatically checks trusted Open Access sources and delivers the full PDF."
+    fa: "کافیست DOI، عنوان مقاله، یا لینک ناشر را ارسال کنید. ربات Research Vault (ResearchVaultAgent) به‌صورت خودکار منابع معتبر Open Access را بررسی کرده و فایل PDF کامل را تحویل می‌دهد.",
+    en: "Just send the DOI, article title, or publisher link. Research Vault (ResearchVaultAgent) automatically checks trusted Open Access sources and delivers the full PDF."
   },
   "hero.cta": { fa: "شروع در تلگرام", en: "Start on Telegram" },
   "hero.cta2": { fa: "مشاهده تعرفه‌ها", en: "View pricing" },
@@ -145,14 +146,14 @@ const I18N = {
 
   "cta.title": { fa: "آماده شروع هستید؟", en: "Ready to start?" },
   "cta.text": {
-    fa: "همین حالا در تلگرام ربات را استارت کنید و اولین مقاله خود را دریافت کنید.",
-    en: "Start the bot on Telegram right now and get your first paper."
+    fa: "همین حالا در تلگرام ربات Research Vault (ResearchVaultAgent) را استارت کنید و اولین مقاله خود را دریافت کنید.",
+    en: "Start the Research Vault (ResearchVaultAgent) bot on Telegram right now and get your first paper."
   },
   "cta.btn": { fa: "شروع در تلگرام", en: "Start on Telegram" },
 
   "footer.desc": {
-    fa: "دستیار هوشمند پژوهش — دسترسی سریع به مقالات علمی از منابع معتبر Open Access.",
-    en: "Smart research assistant — fast access to scholarly papers from trusted Open Access sources."
+    fa: "Research Vault (ResearchVaultAgent) — دستیار هوشمند پژوهش؛ دسترسی سریع به مقالات علمی از منابع معتبر Open Access.",
+    en: "Research Vault (ResearchVaultAgent) — smart research assistant with fast access to scholarly papers from trusted Open Access sources."
   },
   "footer.product": { fa: "محصول", en: "Product" },
   "footer.legal": { fa: "حقوقی", en: "Legal" },
@@ -165,15 +166,15 @@ const I18N = {
     en: "Transparent, simple, no hidden fees. Only successful deliveries consume credits."
   },
   "pages.about.title": { fa: "درباره ما", en: "About us" },
-  "pages.about.subtitle": { fa: "چه کسی و چرا ResearchVaultAgent را ساخت؟", en: "Who built ResearchVaultAgent and why?" },
+  "pages.about.subtitle": { fa: "چه کسی و چرا Research Vault را ساخت؟", en: "Who built Research Vault and why?" },
   "pages.contact.title": { fa: "تماس با ما", en: "Contact us" },
   "pages.contact.subtitle": { fa: "پاسخ به سوالات و پشتیبانی در سریع‌ترین زمان ممکن.", en: "Fast answers and support." },
   "pages.terms.title": { fa: "قوانین و مقررات", en: "Terms of Service" },
-  "pages.terms.subtitle": { fa: "شرایط استفاده از خدمات ResearchVaultAgent", en: "Terms for using ResearchVaultAgent" },
+  "pages.terms.subtitle": { fa: "شرایط استفاده از خدمات Research Vault", en: "Terms for using Research Vault" },
   "pages.privacy.title": { fa: "حریم خصوصی", en: "Privacy Policy" },
-  "pages.privacy.subtitle": { fa: "چگونه از داده‌های شما محافظت می‌کنیم", en: "How we protect your data" },
+  "pages.privacy.subtitle": { fa: "چگونه Research Vault از داده‌های شما محافظت می‌کند", en: "How Research Vault protects your data" },
   "pages.refund.title": { fa: "شرایط بازگشت وجه", en: "Refund Policy" },
-  "pages.refund.subtitle": { fa: "تعهد ما به بازگشت وجه در شرایط خاص", en: "Our commitment to refunds in certain cases" },
+  "pages.refund.subtitle": { fa: "تعهد Research Vault به بازگشت وجه در شرایط خاص", en: "Research Vault's commitment to refunds in certain cases" },
 };
 
 // ==================== Language Management ====================
@@ -233,9 +234,9 @@ function injectHeader() {
   header.className = "header";
   header.innerHTML = `
     <div class="container header__inner">
-      <a href="index.html" class="logo">
+      <a href="index.html" class="logo" aria-label="Research Vault (ResearchVaultAgent)">
         <span class="logo__icon">
-            <img src="assets/logo.png" alt="ResearchVault" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" />
+          <img src="assets/logo.png" alt="Research Vault logo" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" />
         </span>
         <span class="logo__text-fa">ResearchVault</span>
         <span class="logo__text-en">ResearchVault</span>
@@ -308,8 +309,8 @@ function injectFooter() {
         </div>
       </div>
       <div class="footer__bottom">
-        <div>© 2026 ResearchVaultAgent — <span data-i18n="footer.rights"></span></div>
-            <div class="footer__enamad">
+        <div>© 2026 Research Vault (ResearchVaultAgent) — <span data-i18n="footer.rights"></span></div>
+        <div class="footer__enamad">
           <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' alt='' style='cursor:pointer' code='3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' onerror="this.onerror=null;this.src='assets/enamad-fallback.png';"></a>
         </div>
       </div>
