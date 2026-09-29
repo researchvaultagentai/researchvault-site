@@ -310,7 +310,9 @@ function injectFooter() {
       <div class="footer__bottom">
         <div>© 2026 ResearchVaultAgent — <span data-i18n="footer.rights"></span></div>
         <div class="footer__enamad">
-          <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' alt='' style='cursor:pointer' code='3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'></a>
+          <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'>
+            <img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' alt='نماد اعتماد الکترونیکی' code='3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'>
+          </a>
         </div>
       </div>
     </div>
