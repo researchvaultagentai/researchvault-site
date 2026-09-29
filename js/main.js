@@ -5,7 +5,6 @@
 
 // ==================== i18n Dictionary ====================
 const I18N = {
-  // ---- Header / Nav ----
   "nav.home": { fa: "خانه", en: "Home" },
   "nav.pricing": { fa: "تعرفه‌ها", en: "Pricing" },
   "nav.about": { fa: "درباره ما", en: "About" },
@@ -15,7 +14,6 @@ const I18N = {
   "nav.refund": { fa: "بازگشت وجه", en: "Refund" },
   "nav.start": { fa: "شروع در تلگرام", en: "Start on Telegram" },
 
-  // ---- Hero ----
   "hero.badge": { fa: "دسترسی سریع به مقالات علمی", en: "Fast access to research papers" },
   "hero.title1": { fa: "دسترسی آسان به", en: "Easy access to" },
   "hero.title2": { fa: "مقالات علمی معتبر", en: "trusted research papers" },
@@ -29,7 +27,6 @@ const I18N = {
   "mockup.bot": { fa: "در حال جستجو در منابع معتبر...", en: "Searching trusted sources..." },
   "mockup.file": { fa: "مقاله.pdf آماده دریافت است", en: "Article.pdf is ready" },
 
-  // ---- Features ----
   "features.label": { fa: "چرا ما؟", en: "Why us?" },
   "features.title": { fa: "همه چیز برای پژوهش شما", en: "Everything for your research" },
   "features.subtitle": {
@@ -67,7 +64,6 @@ const I18N = {
     en: "Fast response on Telegram for any question or issue."
   },
 
-  // ---- Steps ----
   "steps.label": { fa: "چطور کار می‌کند؟", en: "How it works" },
   "steps.title": { fa: "سه گام ساده تا مقاله شما", en: "Three simple steps" },
   "step1.title": { fa: "ارسال DOI یا عنوان", en: "Send DOI or title" },
@@ -86,7 +82,6 @@ const I18N = {
     en: "The full PDF file is sent directly to your Telegram chat."
   },
 
-  // ---- Pricing Preview ----
   "pricing.label": { fa: "تعرفه‌ها", en: "Pricing" },
   "pricing.title": { fa: "پلن مناسب خود را انتخاب کنید", en: "Choose your plan" },
   "pricing.subtitle": {
@@ -97,65 +92,34 @@ const I18N = {
   "pricing.credits": { fa: "اعتبار", en: "credits" },
   "pricing.usd": { fa: "دلار", en: "USD" },
   "pricing.popular": { fa: "محبوب", en: "POPULAR" },
-       "pricing.buy": {
-      fa: "خرید از ربات",
-      en: "Buy from bot"
-    },
-    "pricing.notice.title": {
-      fa: "نکته مهم:",
-      en: "Important:"
-    },
-    "pricing.notice.text": {
-      fa: "هر اعتبار معادل یک مقاله موفق است. اگر مقاله‌ای پیدا نشود یا با مشکل مواجه شود، هیچ اعتباری کسر نمی‌شود. قیمت‌های تومانی بر اساس نرخ لحظه‌ای دلار محاسبه شده و ممکن است کمی متفاوت باشد.",
-      en: "Each credit equals one successful paper. No credit is deducted if a paper is not found or fails. Toman prices are calculated at the live USD rate and may differ slightly."
-    },
-    "pricing.payment.title": {
-      fa: "روش‌های پرداخت",
-      en: "Payment Methods"
-    },
-    "pricing.payment.stars.label": {
-      fa: "استارز تلگرام (⭐):",
-      en: "Telegram Stars (⭐):"
-    },
-    "pricing.payment.stars.text": {
-      fa: "پرداخت سریع از داخل ربات، بدون نیاز به درگاه بانکی.",
-      en: "Fast payment from within the bot — no bank gateway needed."
-    },
-    "pricing.payment.rial.label": {
-      fa: "ریال ایران (زرین‌پال):",
-      en: "Iranian Rial (ZarinPal):"
-    },
-    "pricing.payment.rial.text": {
-      fa: "پرداخت از طریق درگاه امن زرین‌پال با تمام کارت‌های شتاب.",
-      en: "Payment via the secure ZarinPal gateway with all Shetab cards."
-    },
-    "pricing.usage.title": {
-      fa: "نحوه استفاده از اعتبار",
-      en: "How to Use Credits"
-    },
-    "pricing.usage.step1": {
-      fa: "در تلگرام ربات را استارت کنید.",
-      en: "Start the bot on Telegram."
-    },
-    "pricing.usage.step2": {
-      fa: "DOI، عنوان مقاله یا لینک ناشر را ارسال کنید.",
-      en: "Send the DOI, article title, or publisher link."
-    },
-    "pricing.usage.step3": {
-      fa: "ربات به‌صورت خودکار مقاله را جستجو و برایتان ارسال می‌کند.",
-      en: "The bot automatically finds and sends the paper."
-    },
-    "pricing.usage.step4": {
-      fa: "فقط پس از تحویل موفق، ۱ اعتبار کسر می‌شود.",
-      en: "Only 1 credit is deducted after successful delivery."
-    },
-  // ---- Trust ----
+  "pricing.buy": { fa: "خرید از ربات", en: "Buy from bot" },
+  "pricing.notice.title": { fa: "نکته مهم:", en: "Important:" },
+  "pricing.notice.text": {
+    fa: "هر اعتبار معادل یک مقاله موفق است. اگر مقاله‌ای پیدا نشود یا با مشکل مواجه شود، هیچ اعتباری کسر نمی‌شود. قیمت‌های تومانی بر اساس نرخ لحظه‌ای دلار محاسبه شده و ممکن است کمی متفاوت باشد.",
+    en: "Each credit equals one successful paper. No credit is deducted if a paper is not found or fails. Toman prices are calculated at the live USD rate and may differ slightly."
+  },
+  "pricing.payment.title": { fa: "روش‌های پرداخت", en: "Payment Methods" },
+  "pricing.payment.stars.label": { fa: "استارز تلگرام (⭐):", en: "Telegram Stars (⭐):" },
+  "pricing.payment.stars.text": {
+    fa: "پرداخت سریع از داخل ربات، بدون نیاز به درگاه بانکی.",
+    en: "Fast payment from within the bot — no bank gateway needed."
+  },
+  "pricing.payment.rial.label": { fa: "ریال ایران (زرین‌پال):", en: "Iranian Rial (ZarinPal):" },
+  "pricing.payment.rial.text": {
+    fa: "پرداخت از طریق درگاه امن زرین‌پال با تمام کارت‌های شتاب.",
+    en: "Payment via the secure ZarinPal gateway with all Shetab cards."
+  },
+  "pricing.usage.title": { fa: "نحوه استفاده از اعتبار", en: "How to Use Credits" },
+  "pricing.usage.step1": { fa: "در تلگرام ربات را استارت کنید.", en: "Start the bot on Telegram." },
+  "pricing.usage.step2": { fa: "DOI، عنوان مقاله یا لینک ناشر را ارسال کنید.", en: "Send the DOI, article title, or publisher link." },
+  "pricing.usage.step3": { fa: "ربات به‌صورت خودکار مقاله را جستجو و برایتان ارسال می‌کند.", en: "The bot automatically finds and sends the paper." },
+  "pricing.usage.step4": { fa: "فقط پس از تحویل موفق، ۱ اعتبار کسر می‌شود.", en: "Only 1 credit is deducted after successful delivery." },
+
   "trust1.label": { fa: "منبع علمی", en: "scholarly sources" },
   "trust2.label": { fa: "مقاله تحویل شده", en: "papers delivered" },
   "trust3.label": { fa: "آپ‌تایم", en: "uptime" },
   "trust4.label": { fa: "پشتیبانی", en: "support" },
 
-  // ---- FAQ ----
   "faq.label": { fa: "سوالات متداول", en: "FAQ" },
   "faq.title": { fa: "پاسخ به پرسش‌های شما", en: "Answers to your questions" },
   "faq1.q": { fa: "چطور از ربات استفاده کنم؟", en: "How do I use the bot?" },
@@ -179,7 +143,6 @@ const I18N = {
     en: "No credit is consumed in this case. You can send a more precise title or publisher page link, or contact support."
   },
 
-  // ---- CTA ----
   "cta.title": { fa: "آماده شروع هستید؟", en: "Ready to start?" },
   "cta.text": {
     fa: "همین حالا در تلگرام ربات را استارت کنید و اولین مقاله خود را دریافت کنید.",
@@ -187,7 +150,6 @@ const I18N = {
   },
   "cta.btn": { fa: "شروع در تلگرام", en: "Start on Telegram" },
 
-  // ---- Footer ----
   "footer.desc": {
     fa: "دستیار هوشمند پژوهش — دسترسی سریع به مقالات علمی از منابع معتبر Open Access.",
     en: "Smart research assistant — fast access to scholarly papers from trusted Open Access sources."
@@ -197,7 +159,6 @@ const I18N = {
   "footer.support": { fa: "پشتیبانی", en: "Support" },
   "footer.rights": { fa: "تمام حقوق محفوظ است.", en: "All rights reserved." },
 
-  // ---- Pages ----
   "pages.pricing.title": { fa: "تعرفه‌ها", en: "Pricing" },
   "pages.pricing.subtitle": {
     fa: "شفاف، ساده، بدون هزینه پنهان. فقط برای هر مقاله موفق اعتبار کسر می‌شود.",
@@ -245,7 +206,6 @@ function applyLang() {
     el.innerHTML = t(key);
   });
 
-  // Update active nav link
   document.querySelectorAll("[data-nav]").forEach((link) => {
     const key = link.getAttribute("data-nav");
     const current = window.location.pathname.split("/").pop() || "index.html";
@@ -261,7 +221,6 @@ function applyLang() {
     if (map[key] === current) link.classList.add("nav__link--active");
   });
 
-  // Update language toggle label
   const toggle = document.querySelector(".lang-toggle");
   if (toggle) {
     toggle.innerHTML = lang === "fa" ? "🇬🇧 English" : "🇮🇷 فارسی";
@@ -350,7 +309,7 @@ function injectFooter() {
       </div>
       <div class="footer__bottom">
         <div>© 2026 ResearchVaultAgent — <span data-i18n="footer.rights"></span></div>
-                        <div class="footer__enamad">
+        <div class="footer__enamad">
           <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' alt='' style='cursor:pointer' code='3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'></a>
         </div>
       </div>
