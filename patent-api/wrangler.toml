@@ -1,0 +1,34 @@
+name = "researchvault-patent-api"
+main = "src/index-b2.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+preview_urls = false
+
+[[routes]]
+pattern = "patent-api.researchvaultagent.ir"
+custom_domain = true
+
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://researchvaultagent.ir,https://www.researchvaultagent.ir"
+SESSION_TTL_DAYS = "14"
+OTP_TTL_MINUTES = "10"
+OTP_PROVIDER = "email"
+OTP_FROM_EMAIL = "ResearchVault Patent <patent@researchvaultagent.ir>"
+ADMIN_EMAILS = "researchvaultagent.ai@gmail.com"
+MAX_UPLOAD_BYTES = "15728640"
+STORAGE_PROVIDER = "backblaze_b2"
+B2_BUCKET_ID = "4dacb85a054c0aa3a0110a16"
+B2_BUCKET_NAME = "researchvault-patent-private"
+B2_S3_ENDPOINT = "https://s3.us-east-005.backblazeb2.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "researchvault-patent-db"
+database_id = "89090b29-61fd-4002-bb75-fea8cfda70a5"
+migrations_dir = "migrations"
+
+# Backblaze B2 storage is used instead of Cloudflare R2.
+# Required secrets: OTP_PEPPER, SESSION_PEPPER, EVIDENCE_HMAC_SECRET, RESEND_API_KEY,
+# B2_KEY_ID, B2_APPLICATION_KEY, FILE_ENCRYPTION_KEY
+# Optional: TELEGRAM_BOT_TOKEN, ZARINPAL_MERCHANT_ID
