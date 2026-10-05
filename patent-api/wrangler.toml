@@ -1,5 +1,5 @@
 name = "researchvault-patent-api"
-main = "src/index.js"
+main = "src/index-b2.js"
 compatibility_date = "2026-10-01"
 workers_dev = true
 
@@ -12,7 +12,10 @@ OTP_PROVIDER = "email"
 OTP_FROM_EMAIL = "ResearchVault Patent <patent@researchvaultagent.ir>"
 ADMIN_EMAILS = "researchvaultagent.ai@gmail.com"
 MAX_UPLOAD_BYTES = "15728640"
-STORAGE_PROVIDER = "google_drive"
+STORAGE_PROVIDER = "backblaze_b2"
+B2_BUCKET_ID = "4dacb85a054c0aa3a0110a16"
+B2_BUCKET_NAME = "researchvault-patent-private"
+B2_S3_ENDPOINT = "https://s3.us-east-005.backblazeb2.com"
 
 [[d1_databases]]
 binding = "DB"
@@ -20,8 +23,7 @@ database_name = "researchvault-patent-db"
 database_id = "89090b29-61fd-4002-bb75-fea8cfda70a5"
 migrations_dir = "migrations"
 
-# Google Drive storage: no R2 binding is used.
+# Backblaze B2 storage is used instead of Cloudflare R2.
 # Required secrets: OTP_PEPPER, SESSION_PEPPER, EVIDENCE_HMAC_SECRET, RESEND_API_KEY,
-# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, GOOGLE_DRIVE_FOLDER_ID,
-# FILE_ENCRYPTION_KEY
+# B2_KEY_ID, B2_APPLICATION_KEY, FILE_ENCRYPTION_KEY
 # Optional: TELEGRAM_BOT_TOKEN, ZARINPAL_MERCHANT_ID
