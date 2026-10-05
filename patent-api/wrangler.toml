@@ -16,7 +16,7 @@ MAX_UPLOAD_BYTES = "15728640"
 [[d1_databases]]
 binding = "DB"
 database_name = "researchvault-patent-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "89090b29-61fd-4002-bb75-fea8cfda70a5"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
