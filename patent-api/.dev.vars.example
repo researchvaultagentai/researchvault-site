@@ -1,0 +1,6 @@
+OTP_PEPPER=replace-with-long-random-string
+SESSION_PEPPER=replace-with-long-random-string
+EVIDENCE_HMAC_SECRET=replace-with-long-random-string
+RESEND_API_KEY=re_xxxxxxxxx
+TELEGRAM_BOT_TOKEN=
+ZARINPAL_MERCHANT_ID=
