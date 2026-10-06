@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rv-source-06-society-tech",
+  "main": "src/source-worker.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": true,
+  "vars": {
+    "WORKER_ID": "rv-source-06-society-tech",
+    "SOURCE_GROUP": "SOCIETY_ENGINEERING",
+    "SCAFFOLD_VERSION": "stage1"
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
