@@ -1,0 +1,22 @@
+{
+  "name": "researchvault-paper-infra",
+  "private": true,
+  "version": "0.1.0-stage1",
+  "type": "module",
+  "scripts": {
+    "deploy:source01": "wrangler deploy -c wrangler.source-01.jsonc",
+    "deploy:source02": "wrangler deploy -c wrangler.source-02.jsonc",
+    "deploy:source03": "wrangler deploy -c wrangler.source-03.jsonc",
+    "deploy:source04": "wrangler deploy -c wrangler.source-04.jsonc",
+    "deploy:source05": "wrangler deploy -c wrangler.source-05.jsonc",
+    "deploy:source06": "wrangler deploy -c wrangler.source-06.jsonc",
+    "deploy:source07": "wrangler deploy -c wrangler.source-07.jsonc",
+    "deploy:sources": "npm run deploy:source01 && npm run deploy:source02 && npm run deploy:source03 && npm run deploy:source04 && npm run deploy:source05 && npm run deploy:source06 && npm run deploy:source07",
+    "deploy:pdf": "wrangler deploy -c wrangler.pdf-finder.jsonc",
+    "deploy:doi": "wrangler deploy -c wrangler.doi-resolver.jsonc",
+    "deploy:all": "npm run deploy:sources && npm run deploy:pdf && npm run deploy:doi"
+  },
+  "devDependencies": {
+    "wrangler": "4.147.0"
+  }
+}
