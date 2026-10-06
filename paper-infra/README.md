@@ -47,6 +47,18 @@ Every Worker exposes `/health` to upstream Service Bindings. Resolver/finder/sou
 
 All logs are structured JSON and are intended for Cloudflare Observability only. They are never returned in Telegram user messages.
 
+## Stage 1 verification
+
+Stage 1 was deployed and smoke-tested end to end on Cloudflare before the temporary smoke gateway was removed.
+
+Verified path:
+
+```text
+rv-doi-resolver -> rv-pdf-finder -> all seven source Workers
+```
+
+The end-to-end smoke response returned `HTTP 200` with `ok: true`; all seven source bindings returned `HTTP 200`. The production Telegram bot remained disconnected throughout the test.
+
 ## Mandatory QA before deployment
 
 After installing dependencies, run the safety and bundle checks before any deployment:
