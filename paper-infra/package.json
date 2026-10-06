@@ -15,6 +15,7 @@
     "check:bundle:sources": "npm run check:bundle:source01 && npm run check:bundle:source02 && npm run check:bundle:source03 && npm run check:bundle:source04 && npm run check:bundle:source05 && npm run check:bundle:source06 && npm run check:bundle:source07",
     "check:bundle:pdf": "wrangler deploy --dry-run -c wrangler.pdf-finder.jsonc",
     "check:bundle:doi": "wrangler deploy --dry-run -c wrangler.doi-resolver.jsonc",
+    "check:bundle:smoke": "wrangler deploy --dry-run -c wrangler.smoke-gateway.jsonc",
     "check:bundle": "npm run check:bundle:sources && npm run check:bundle:pdf && npm run check:bundle:doi",
     "check": "npm run check:static && npm run check:bundle",
     "deploy:source01": "wrangler deploy -c wrangler.source-01.jsonc",
@@ -27,7 +28,9 @@
     "deploy:sources": "npm run deploy:source01 && npm run deploy:source02 && npm run deploy:source03 && npm run deploy:source04 && npm run deploy:source05 && npm run deploy:source06 && npm run deploy:source07",
     "deploy:pdf": "wrangler deploy -c wrangler.pdf-finder.jsonc",
     "deploy:doi": "wrangler deploy -c wrangler.doi-resolver.jsonc",
-    "deploy:all": "npm run deploy:sources && npm run deploy:pdf && npm run deploy:doi"
+    "deploy:all": "npm run deploy:sources && npm run deploy:pdf && npm run deploy:doi",
+    "smoke:deploy": "wrangler deploy -c wrangler.smoke-gateway.jsonc",
+    "smoke:delete": "wrangler delete -c wrangler.smoke-gateway.jsonc --name rv-paper-smoke-gateway"
   },
   "devDependencies": {
     "wrangler": "4.147.0"
