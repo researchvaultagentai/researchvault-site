@@ -3,7 +3,8 @@
   "name": "rv-source-02-biomed",
   "main": "src/source-worker.js",
   "compatibility_date": "2026-10-06",
-  "workers_dev": true,
+  "workers_dev": false,
+  "preview_urls": false,
   "vars": {
     "WORKER_ID": "rv-source-02-biomed",
     "SOURCE_GROUP": "BIOMEDICAL",
