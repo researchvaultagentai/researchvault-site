@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rv-pdf-finder",
+  "main": "src/pdf-finder.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": true,
+  "vars": {
+    "WORKER_ID": "rv-pdf-finder",
+    "SCAFFOLD_VERSION": "stage1"
+  },
+  "services": [
+    { "binding": "SOURCE_01_OA", "service": "rv-source-01-oa" },
+    { "binding": "SOURCE_02_BIOMED", "service": "rv-source-02-biomed" },
+    { "binding": "SOURCE_03_PREPRINTS", "service": "rv-source-03-preprints" },
+    { "binding": "SOURCE_04_PUBLISHERS_A", "service": "rv-source-04-publishers-a" },
+    { "binding": "SOURCE_05_PUBLISHERS_B", "service": "rv-source-05-publishers-b" },
+    { "binding": "SOURCE_06_SOCIETY_TECH", "service": "rv-source-06-society-tech" },
+    { "binding": "SOURCE_07_LONGTAIL", "service": "rv-source-07-longtail" }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
