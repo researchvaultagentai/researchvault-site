@@ -1,0 +1,31 @@
+name: Stage 1 Paper Smoke
+
+on:
+  push:
+    branches:
+      - infra/paper-resolution-stage1
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe smoke gateway from GitHub runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://rv-paper-smoke.researchvaultagent.ir/smoke"
+          echo "Probing: $URL"
+          body="$(curl --fail --silent --show-error --location --max-time 30 "$URL")"
+          echo "$body"
+          python3 - <<'PY' "$body"
+          import json, sys
+          payload = json.loads(sys.argv[1])
+          assert payload.get("ok") is True, payload
+          doi = payload.get("doi_chain") or {}
+          pdf = payload.get("pdf_chain") or {}
+          assert doi.get("ok") is True and doi.get("status") == 200, doi
+          assert pdf.get("ok") is True and pdf.get("status") == 200, pdf
+          print("PASS: cloud-to-cloud Stage 1 smoke chain is healthy")
+          PY
