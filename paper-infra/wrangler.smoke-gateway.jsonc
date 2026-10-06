@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rv-paper-smoke-gateway",
+  "main": "src/smoke-gateway.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "WORKER_ID": "rv-paper-smoke-gateway",
+    "SCAFFOLD_VERSION": "stage1-smoke"
+  },
+  "services": [
+    { "binding": "DOI_RESOLVER", "service": "rv-doi-resolver" },
+    { "binding": "PDF_FINDER", "service": "rv-pdf-finder" }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
