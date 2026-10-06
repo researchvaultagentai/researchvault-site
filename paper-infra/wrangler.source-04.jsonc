@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rv-source-04-publishers-a",
+  "main": "src/source-worker.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": true,
+  "vars": {
+    "WORKER_ID": "rv-source-04-publishers-a",
+    "SOURCE_GROUP": "MAJOR_PUBLISHERS_A",
+    "SCAFFOLD_VERSION": "stage1"
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}
