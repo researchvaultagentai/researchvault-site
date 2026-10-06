@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "rv-doi-resolver",
+  "main": "src/doi-resolver.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": true,
+  "vars": {
+    "WORKER_ID": "rv-doi-resolver",
+    "SCAFFOLD_VERSION": "stage1"
+  },
+  "services": [
+    {
+      "binding": "PDF_FINDER",
+      "service": "rv-pdf-finder"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}
