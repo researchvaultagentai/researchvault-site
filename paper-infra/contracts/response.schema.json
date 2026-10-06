@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://researchvaultagent.ir/schemas/paper-resolution-response.schema.json",
+  "title": "ResearchVault Paper Resolution Response",
+  "type": "object",
+  "required": ["trace_id", "status", "source", "retryable"],
+  "properties": {
+    "trace_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "status": {
+      "type": "string",
+      "enum": ["resolved", "candidate", "not_found", "timeout", "rate_limited", "blocked", "invalid_pdf", "error", "infrastructure_only"]
+    },
+    "canonical_doi": { "type": ["string", "null"], "maxLength": 512 },
+    "pdf_url": { "type": ["string", "null"], "format": "uri", "maxLength": 4096 },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "source": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "latency_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "retryable": { "type": "boolean" },
+    "retry_after_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+    "candidates": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string", "format": "uri", "maxLength": 4096 },
+          "kind": { "type": "string", "enum": ["publisher_pdf", "repository_pdf", "author_manuscript", "landing_page", "unknown"] },
+          "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        },
+        "required": ["url", "kind"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
