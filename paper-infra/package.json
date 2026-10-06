@@ -16,6 +16,7 @@
     "check:bundle:pdf": "wrangler deploy --dry-run -c wrangler.pdf-finder.jsonc",
     "check:bundle:doi": "wrangler deploy --dry-run -c wrangler.doi-resolver.jsonc",
     "check:bundle:smoke": "wrangler deploy --dry-run -c wrangler.smoke-gateway.jsonc",
+    "check:bundle:smoke-domain": "wrangler deploy --dry-run -c wrangler.smoke-gateway-domain.jsonc",
     "check:bundle": "npm run check:bundle:sources && npm run check:bundle:pdf && npm run check:bundle:doi",
     "check": "npm run check:static && npm run check:bundle",
     "deploy:source01": "wrangler deploy -c wrangler.source-01.jsonc",
@@ -30,7 +31,9 @@
     "deploy:doi": "wrangler deploy -c wrangler.doi-resolver.jsonc",
     "deploy:all": "npm run deploy:sources && npm run deploy:pdf && npm run deploy:doi",
     "smoke:deploy": "wrangler deploy -c wrangler.smoke-gateway.jsonc",
-    "smoke:delete": "wrangler delete -c wrangler.smoke-gateway.jsonc --name rv-paper-smoke-gateway"
+    "smoke:deploy:domain": "wrangler deploy -c wrangler.smoke-gateway-domain.jsonc",
+    "smoke:delete": "wrangler delete -c wrangler.smoke-gateway.jsonc --name rv-paper-smoke-gateway",
+    "smoke:delete:domain": "wrangler delete -c wrangler.smoke-gateway-domain.jsonc --name rv-paper-smoke-gateway"
   },
   "devDependencies": {
     "wrangler": "4.147.0"
