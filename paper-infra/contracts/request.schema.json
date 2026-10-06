@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://researchvaultagent.ir/schemas/paper-resolution-request.schema.json",
+  "title": "ResearchVault Paper Resolution Request",
+  "type": "object",
+  "required": ["trace_id", "request_id", "attempt"],
+  "properties": {
+    "trace_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "doi": { "type": ["string", "null"], "maxLength": 512 },
+    "title": { "type": ["string", "null"], "maxLength": 2000 },
+    "source_hint": { "type": ["string", "null"], "maxLength": 128 },
+    "attempt": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "deadline_ms": { "type": ["integer", "null"], "minimum": 1, "maximum": 300000 },
+    "allow_deferred_retry": { "type": "boolean", "default": true }
+  },
+  "anyOf": [
+    { "required": ["doi"] },
+    { "required": ["title"] }
+  ],
+  "additionalProperties": false
+}
