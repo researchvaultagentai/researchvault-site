@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://researchvaultagent.ir/schemas/paper-telemetry.schema.json",
+  "title": "ResearchVault Paper Resolution Telemetry Event",
+  "type": "object",
+  "required": ["ts", "event", "service"],
+  "properties": {
+    "ts": { "type": "string", "format": "date-time" },
+    "event": { "type": "string", "maxLength": 128 },
+    "trace_id": { "type": ["string", "null"], "maxLength": 128 },
+    "service": { "type": "string", "maxLength": 128 },
+    "source": { "type": ["string", "null"], "maxLength": 128 },
+    "phase": { "type": ["string", "null"], "maxLength": 128 },
+    "result": { "type": ["string", "null"], "maxLength": 128 },
+    "latency_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "http_status": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+    "candidate_count": { "type": ["integer", "null"], "minimum": 0 },
+    "pdf_valid": { "type": ["boolean", "null"] },
+    "retry_number": { "type": ["integer", "null"], "minimum": 0 }
+  },
+  "additionalProperties": true,
+  "description": "Never log authorization headers, cookies, tokens, API keys, Telegram credentials, session identifiers, passwords or secret values."
+}
