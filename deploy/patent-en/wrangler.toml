@@ -1,0 +1,7 @@
+name = "researchvault-patent"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-18"
+
+[[services]]
+binding = "PATENT_API"
+service = "researchvault-patent-api"
