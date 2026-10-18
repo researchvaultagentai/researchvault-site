@@ -1,12 +1,15 @@
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 // Real SQLite with the prepare/bind/first/all/run/batch surface used by D1.
 // This tests SQL and transaction behavior locally, not the live D1 service.
 export function sqliteD1() {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
-  raw.exec(readFileSync(new URL('../migrations/0001_work_control.sql', import.meta.url), 'utf8'));
+  const migrations = new URL('../migrations/', import.meta.url);
+  for (const file of readdirSync(migrations).filter(name => name.endsWith('.sql')).sort()) {
+    raw.exec(readFileSync(new URL(file, migrations), 'utf8'));
+  }
   return {
     raw,
     prepare(sql) {

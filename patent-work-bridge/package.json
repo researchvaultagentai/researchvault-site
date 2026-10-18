@@ -4,5 +4,12 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=22.13" },
-  "scripts": { "test": "node --test test/*.test.js" }
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check:workers": "node scripts/worker-configs.js",
+    "dev:workers": "wrangler dev -c workers/orchestrator/wrangler.jsonc -c workers/work/wrangler.jsonc -c workers/notifications/wrangler.jsonc -c workers/support/wrangler.jsonc",
+    "build:workers": "node scripts/deploy-workers.js --dry-run",
+    "deploy:workers": "node scripts/deploy-workers.js"
+  },
+  "devDependencies": { "wrangler": "^4.0.0" }
 }

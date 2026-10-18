@@ -64,11 +64,45 @@ export class D1WorkStore {
     return { ...committed, replayed: false };
   }
 
-  async pending(limit = 50) {
+  async pending(limit = 50, now = Date.now()) {
     requireValue(Number.isSafeInteger(limit) && limit > 0 && limit <= 100, 'invalid_batch_size');
+    requireValue(Number.isSafeInteger(now) && now >= 0, 'invalid_timestamp');
     const result = await this.db.prepare(`SELECT event_id, payload_json FROM patent_work_bridge_outbox
-      WHERE status = 'queued' ORDER BY created_at, event_id LIMIT ?`).bind(limit).all();
+      WHERE status = 'queued' AND lease_until <= ? AND next_attempt_at <= ?
+      ORDER BY created_at, event_id LIMIT ?`).bind(now, now, limit).all();
     return result.results.map(row => ({ id: row.event_id, ...JSON.parse(row.payload_json) }));
+  }
+
+  async claimDelivery(eventId, leaseId, now = Date.now(), ttl = 60000) {
+    identifier(eventId); identifier(leaseId);
+    requireValue(Number.isSafeInteger(now) && now >= 0 && Number.isSafeInteger(ttl) &&
+      ttl >= 1000 && ttl <= 300000, 'invalid_delivery_lease');
+    const result = await this.db.prepare(`UPDATE patent_work_bridge_outbox
+      SET lease_token = ?, lease_until = ?, attempts = attempts + 1
+      WHERE event_id = ? AND status = 'queued' AND lease_until <= ? AND next_attempt_at <= ?`)
+      .bind(leaseId, now + ttl, eventId, now, now).run();
+    return result.meta.changes === 1;
+  }
+
+  async finishDelivery(eventId, leaseId, status) {
+    identifier(eventId); identifier(leaseId);
+    requireValue(status === 'sent' || status === 'dropped', 'invalid_outbox_status');
+    const result = await this.db.prepare(`UPDATE patent_work_bridge_outbox
+      SET status = ?, lease_token = NULL, lease_until = 0, last_error = NULL
+      WHERE event_id = ? AND status = 'queued' AND lease_token = ?`)
+      .bind(status, eventId, leaseId).run();
+    return result.meta.changes === 1;
+  }
+
+  async deferDelivery(eventId, leaseId, errorCode, nextAttemptAt) {
+    identifier(eventId); identifier(leaseId);
+    requireValue(typeof errorCode === 'string' && /^[a-z0-9_]{1,80}$/.test(errorCode), 'invalid_delivery_error');
+    requireValue(Number.isSafeInteger(nextAttemptAt) && nextAttemptAt >= 0, 'invalid_timestamp');
+    const result = await this.db.prepare(`UPDATE patent_work_bridge_outbox
+      SET lease_token = NULL, lease_until = 0, next_attempt_at = ?, last_error = ?
+      WHERE event_id = ? AND status = 'queued' AND lease_token = ?`)
+      .bind(nextAttemptAt, errorCode, eventId, leaseId).run();
+    return result.meta.changes === 1;
   }
 
   // Check immediately before dispatch. The recipient must still claim the exact

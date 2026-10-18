@@ -1,0 +1,11 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "researchvault-patent-notifications",
+  "main": "index.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "vars": { "PATENT_TELEGRAM_ENABLED": "false" },
+  "triggers": { "crons": [] }
+}

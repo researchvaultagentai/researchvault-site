@@ -1,9 +1,12 @@
 # Patent Work connection preparation
 
 This directory prepares the authorization and data boundary for the international
-patent service. It is an isolated library, **not a deployed Worker, connected MCP
-server, Telegram integration, or functioning report-generation service**. No
-existing route, upload limit, price, database, or deployment configuration changes.
+patent service. It includes four dedicated Worker entrypoints and their service
+binding configurations; see [Worker deployment and support](workers/README.md).
+They have **not been deployed or connected to the live Telegram bot or Work
+account**. Existing backend routes, production resources and article-bot code are
+unchanged. The website changes add an isolated bilingual support widget; intelligent
+replies require a verified support endpoint and public Turnstile configuration.
 
 The dedicated account is `researchvaultagent.ai@gmail.com`. A Pro subscription is
 not required to run these local checks. Purchasing a subscription does not install
@@ -163,6 +166,7 @@ gates, package integrity, concurrent commands, replay handling, transaction
 rollback and stale outbox suppression using real local SQLite. They do not claim
 live D1, Telegram, OAuth, MCP Events, model execution or PDF QC has been tested.
 
-The SQL migration deliberately lives here rather than in `patent-api/migrations`.
-Do not apply it to production during connection preparation. No deploy script or
-Worker configuration is supplied by this directory.
+The SQL migrations deliberately live here rather than in `patent-api/migrations`.
+Do not apply them to production during connection preparation. Explicit deployment
+scripts validate the fixed Worker names, private routes and dedicated databases;
+they deploy helper targets before the orchestrator and leave live delivery disabled.
