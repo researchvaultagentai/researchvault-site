@@ -1,8 +1,8 @@
 # Dedicated Workers, support and deployment
 
-Status: source and configuration prepared; **not deployed**. A Cloudflare dashboard
-access attempt in this session returned HTTP 502. No account, Worker, webhook,
-database, schedule or production route has been modified.
+Status: source and configuration prepared; **not deployed**. Interactive Cloudflare
+sign-in was not completed in this session. No Worker, webhook, database, schedule or
+production route has been modified by the patent deployment scripts.
 
 | Worker | Responsibility | Orchestrator binding / named entrypoint |
 | --- | --- | --- |
@@ -143,7 +143,7 @@ npm test
 npm run check:workers
 ```
 
-35 local tests currently cover case isolation, human gates, concurrent database
+42 local tests currently cover case isolation, human gates, concurrent database
 commands/delivery, support budget reservation, intent fallback and HTTP challenge
 checks. Service bindings are exercised through the same service handlers in local
 tests, not the Cloudflare RPC runtime. Worker source syntax/config topology pass.
@@ -165,8 +165,11 @@ orchestrator. Its first deployment is private and delivery-disabled. Enabling
 public support, admin adapters, credentials or schedules requires a separate tested
 configuration change; dashboard edits alone are not a durable source of truth.
 
-There is no new cron, public route or deployment workflow in this change. No
-automatic remote migration is bundled into deployment.
+There is no new cron or public route. An inactive GitHub Actions deployment path is
+prepared in [GITHUB_DEPLOYMENT.md](GITHUB_DEPLOYMENT.md). It uses new repository
+secrets and a separate exact-source activation commit; it does not use the chat
+browser or an account password. No automatic remote migration is bundled into
+deployment.
 
 References checked 2026-10-18:
 

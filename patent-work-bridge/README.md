@@ -3,6 +3,8 @@
 This directory prepares the authorization and data boundary for the international
 patent service. It includes four dedicated Worker entrypoints and their service
 binding configurations; see [Worker deployment and support](workers/README.md).
+The optional [GitHub deployment path](workers/GITHUB_DEPLOYMENT.md) starts inactive
+and requires new repository secrets plus a separate reviewed activation commit.
 They have **not been deployed or connected to the live Telegram bot or Work
 account**. Existing backend routes, production resources and article-bot code are
 unchanged. The website changes add an isolated bilingual support widget; intelligent
