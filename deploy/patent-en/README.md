@@ -8,6 +8,12 @@ Worker, database, storage bucket, payment integration or Telegram service. The
 original English and Persian source files remain unchanged. Do not deploy this
 directory into the existing Pages project.
 
+This production branch intentionally retains the original international PCT
+frontend. The `.ir` site's `/patent/en/` landing is being replaced independently
+with an English translation of the Iranian service page. Do not merge that
+replacement landing into this branch: its international content, dollar pricing
+and international intake flow belong on the new `pages.dev` project.
+
 The English landing page is served at `/`. English client routes retain
 `/patent/en/account/`, `/patent/en/intake/`, `/patent/en/dashboard/` and
 `/patent/en/contract/`. The English agreements are copied byte for byte so that

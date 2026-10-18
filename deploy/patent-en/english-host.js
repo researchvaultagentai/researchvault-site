@@ -3,8 +3,9 @@
 window.PATENT_API_BASE = window.location.origin;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // patent.js creates its header synchronously in its DOMContentLoaded handler.
-  queueMicrotask(() => {
+  // Run after all DOMContentLoaded listeners, including the shared runtime's
+  // header creation, have finished. The API origin above is available at once.
+  setTimeout(() => {
     for (const link of document.querySelectorAll('.topbar a[href]')) {
       const path = link.getAttribute('href');
       if (link.classList.contains('brand') || path === '/patent/en/') {
@@ -15,5 +16,5 @@ document.addEventListener('DOMContentLoaded', () => {
         link.href = 'https://researchvaultagent.ir/';
       }
     }
-  });
+  }, 0);
 });

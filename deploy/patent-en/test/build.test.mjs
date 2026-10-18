@@ -79,7 +79,7 @@ test('English header keeps service links on the new host and Persian/admin links
     querySelectorAll: () => links,
   };
   vm.runInNewContext(await readFile(path.join(output, 'patent/assets/english-host.js'), 'utf8'), {
-    window, document, queueMicrotask: callback => { queued = callback; },
+    window, document, setTimeout: (callback, delay) => { assert.equal(delay, 0); queued = callback; },
   });
   assert.equal(window.PATENT_API_BASE, ORIGIN);
   listener();
