@@ -16,7 +16,7 @@ function request(route, options = {}) {
 }
 test('a missing support binding leaves a safe local guide rather than an invented AI connection', async () => {
   const response = await onRequest({ request: request('/support/config'), env: {} });
-  assert.deepEqual(await response.json(), { configured: false });
+  assert.deepEqual(await response.json(), { configured: false, issues: ['support_service_binding_missing'] });
   assert.equal((await onRequest({ request: request('/support/chat', { method: 'POST', body: '{}' }), env: {} })).status, 503);
 });
 test('preview and cross-origin requests never reach the private support service', async () => {
@@ -51,6 +51,18 @@ test('chat forwards the bounded public body without account cookies or credentia
     headers: { cookie: 'session=PRIVATE', authorization: 'Bearer PRIVATE' } }), env });
   assert.equal(calls, 1); assert.equal(response.headers.get('set-cookie'), null);
   assert.equal((await response.json()).reply, 'Helpful reply');
+});
+
+test('configuration distinguishes connection failures and filters all provider details to fixed issue codes', async () => {
+  for (const [status, issue] of [[403, 'support_origin_rejected'], [404, 'support_worker_route_missing'], [503, 'support_service_unavailable']]) {
+    const env = { SUPPORT_SERVICE: { fetch: async () => new Response('PRIVATE_PROVIDER_DETAIL', { status }) } };
+    assert.deepEqual(await (await onRequest({ request: request('/support/config'), env })).json(), { configured: false, issues: [issue] });
+  }
+  const env = { SUPPORT_SERVICE: { fetch: async () => Response.json({ configured: false,
+    issues: ['ai_binding_missing', 'PRIVATE_SECRET', 'ai_binding_missing'], TURNSTILE_SECRET: 'PRIVATE_SECRET' }) } };
+  assert.deepEqual(await (await onRequest({ request: request('/support/config'), env })).json(), { configured: false, issues: ['ai_binding_missing'] });
+  env.SUPPORT_SERVICE.fetch = async () => { throw new Error('PRIVATE_PROVIDER_DETAIL'); };
+  assert.deepEqual(await (await onRequest({ request: request('/support/config'), env })).json(), { configured: false, issues: ['support_service_unreachable'] });
 });
 test('unexpected methods, routes, bodies and unavailable providers fail without leaking details', async () => {
   const env = { SUPPORT_SERVICE: { async fetch() { throw Error('PRIVATE_PROVIDER_DETAIL'); } } };

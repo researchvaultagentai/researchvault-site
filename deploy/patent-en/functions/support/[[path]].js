@@ -4,6 +4,13 @@ const ORIGINS = new Set([
   'https://researchvault-patent.pages.dev',
 ]);
 const BASE_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
+const WORKER_ISSUES = new Set([
+  'support_disabled', 'turnstile_secret_missing', 'turnstile_site_key_missing',
+  'ai_binding_missing', 'support_database_binding_missing',
+]);
+function unavailable(...issues) {
+  return Response.json({ configured: false, issues }, { headers: BASE_HEADERS });
+}
 function failure(status) {
   return Response.json({ error: 'support_unavailable' }, { status, headers: BASE_HEADERS });
 }
@@ -21,7 +28,7 @@ export async function onRequest({ request, env }) {
   if (!configuration && Number(request.headers.get('content-length') || 0) > 16384) return failure(413);
   if (typeof env.SUPPORT_SERVICE?.fetch !== 'function') {
     return configuration
-      ? Response.json({ configured: false }, { headers: BASE_HEADERS })
+      ? unavailable('support_service_binding_missing')
       : failure(503);
   }
   try {
@@ -33,18 +40,20 @@ export async function onRequest({ request, env }) {
     if (ip) forward.headers.set('cf-connecting-ip', ip);
     const upstream = await env.SUPPORT_SERVICE.fetch(forward);
     if (configuration) {
-      if (!upstream.ok) return Response.json({ configured: false }, { headers: BASE_HEADERS });
+      if (!upstream.ok) return unavailable(upstream.status === 403 ? 'support_origin_rejected'
+        : upstream.status === 404 ? 'support_worker_route_missing' : 'support_service_unavailable');
       const result = await upstream.json();
       const ready = result.configured === true && typeof result.turnstileSiteKey === 'string' &&
         /^[a-zA-Z0-9_-]{10,100}$/.test(result.turnstileSiteKey);
       return Response.json(ready
         ? { configured: true, endpoint: '/support/chat', turnstileSiteKey: result.turnstileSiteKey }
-        : { configured: false }, { headers: BASE_HEADERS });
+        : { configured: false, issues: Array.isArray(result.issues) && result.issues.some(code => WORKER_ISSUES.has(code))
+          ? [...new Set(result.issues.filter(code => WORKER_ISSUES.has(code)))] : ['support_worker_not_ready'] }, { headers: BASE_HEADERS });
     }
     return new Response(upstream.body, { status: upstream.status, headers: {
       ...BASE_HEADERS, 'content-type': 'application/json; charset=utf-8',
     } });
   } catch { return configuration
-    ? Response.json({ configured: false }, { headers: BASE_HEADERS })
+    ? unavailable('support_service_unreachable')
     : failure(503); }
 }
