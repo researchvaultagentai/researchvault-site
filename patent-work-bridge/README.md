@@ -5,9 +5,11 @@ patent service. It includes four dedicated Worker entrypoints and their service
 binding configurations; see [Worker deployment and support](workers/README.md).
 The optional [GitHub deployment path](workers/GITHUB_DEPLOYMENT.md) starts inactive
 and requires new repository secrets plus a separate reviewed activation commit.
-They have **not been deployed or connected to the live Telegram bot or Work
-account**. Existing backend routes, production resources and article-bot code are
-unchanged. The website changes add an isolated bilingual support widget; intelligent
+The Work-package and notification helpers have deployed privately through native
+Cloudflare Builds. Support/orchestrator rollout and live Telegram/Work connections
+remain incomplete; outbound delivery and public support are disabled. Existing
+article-bot code and resources are unchanged. The website changes add an isolated
+bilingual support widget; intelligent
 replies require a verified support endpoint and public Turnstile configuration.
 
 The dedicated account is `researchvaultagent.ai@gmail.com`. A Pro subscription is

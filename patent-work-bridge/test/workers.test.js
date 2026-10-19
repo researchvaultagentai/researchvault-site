@@ -28,6 +28,15 @@ test('worker configs bind only dedicated helpers and their isolated databases', 
   assert.throws(() => validateWorkerConfigs(modified));
   const exposed = structuredClone(configs); exposed[3].workers_dev = true;
   assert.throws(() => validateWorkerConfigs(exposed));
+  const caseDatabase = structuredClone(configs);
+  caseDatabase[2].d1_databases[0].database_id = configs[3].d1_databases[0].database_id;
+  assert.throws(() => validateWorkerConfigs(caseDatabase));
+  const articleDatabase = structuredClone(configs);
+  articleDatabase[2].d1_databases[0].database_name = 'researchvault-db';
+  assert.throws(() => validateWorkerConfigs(articleDatabase));
+  const unrecordedDatabase = structuredClone(configs);
+  delete unrecordedDatabase[2].d1_databases[0].database_id;
+  assert.throws(() => validateWorkerConfigs(unrecordedDatabase));
   assert.equal(privateHttp().status, 404);
 });
 

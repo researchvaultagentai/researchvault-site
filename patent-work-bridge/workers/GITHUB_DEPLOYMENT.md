@@ -5,8 +5,10 @@ Cloudflare CI authentication method. It does not sign the assistant into the das
 
 ## Current status
 
-The workflow and inactive request are prepared. No Cloudflare credentials have been
-read or saved in source. No Worker deployment or database migration has been run.
+This alternative workflow and its request remain inactive. The Work-package and
+notification helpers have deployed through native Cloudflare Workers Builds instead.
+No Cloudflare credentials have been read or saved in source. No database migration
+has been run by the deployment scripts.
 The existing Cloudflare Pages GitHub connection is separate and remains as configured.
 
 The preparation workflow tests the code, validates the four fixed targets and runs
@@ -20,7 +22,8 @@ blocks deployment. The branch must remain `feature/patent-work-connection-prep`.
    To create Workers that do not yet exist, Cloudflare requires Workers product
    `Admin`. Per-Worker `Editor` cannot create a missing Worker. Scope the initial
    token to this account, use a short expiry, and grant only the products needed.
-   The first creation of `researchvault-support-db` also needs D1 creation permission.
+   The owner already created the dedicated support database; its supplied ID is pinned
+   in source. Deploying this existing binding needs no database creation permission.
    Do not add zones, DNS, Pages, billing, Telegram credentials, R2 or the global API key.
 2. In GitHub, open this repository's **Settings > Secrets and variables > Actions**.
    Add these **repository secrets** (the values are entered only in GitHub):
@@ -30,9 +33,9 @@ blocks deployment. The branch must remain `feature/patent-work-connection-prep`.
 3. Tell the maintainer only that the two secrets are saved. Never send their values
    in chat, issues, commits, screenshots or logs.
 
-A token is privileged even though the deployment script has fixed targets. After the
-initial creation, record the support database ID in its dedicated config and replace
-or revoke the temporary creation token. Subsequent tokens can use `Editor` scoped to
+A token is privileged even though the deployment script has fixed targets. After
+creating any missing Workers, replace or revoke the temporary creation token.
+Subsequent tokens can use `Editor` scoped to
 only the four existing Workers. Binding an existing resource does not by itself
 require direct access to its data. Any later SQL migration is separate reviewed work.
 
@@ -65,8 +68,8 @@ reviewed account, and calls the existing allowlisted deploy script, helpers firs
 4. `researchvault-patent-orchestrator`
 
 All four start private, without workers.dev, preview URLs, routes, schedules or
-outbound delivery. The guard checks those conditions. The initial support D1 may be
-provisioned by Wrangler; SQL migrations are **not** run. No AI inference, Telegram
+outbound delivery. The guard checks those conditions. Support D1 is an existing,
+explicitly pinned resource; SQL migrations are **not** run. No AI inference, Telegram
 send, payment, Work transport or customer delivery is enabled by this job.
 
 The workflow does not deploy Pages or any existing article-bot Worker, replace

@@ -1,9 +1,11 @@
 # Dedicated Workers, support and deployment
 
 Status: infrastructure rollout in progress. The private `researchvault-patent-work`
-helper deployed successfully from source `6f8fa1fee81c3131aa2646930580a7878f672256`
-(Cloudflare version `054524ca-c15a-429e-b2f1-5952b73a3333`). Each remaining Worker
-still needs its own successful build verification. Case execution, public support
+and `researchvault-patent-notifications` helpers deployed successfully from source
+`3347a9788e5a5b95dd0969dd7de0dbb55072f8cd`, with Cloudflare versions
+`396160cf-372e-42c6-8eb3-2d9f2a52e72a` and
+`53de5edd-2fdc-4629-86bd-a0012e1b23ec` respectively. Support and orchestrator
+still need their own successful build verification. Case execution, public support
 and Telegram delivery remain disabled. Interactive Cloudflare sign-in was not
 completed in this session; the account owner configured native Workers Builds.
 No article-bot resource is a deployment target and no SQL migrations have been run
@@ -77,9 +79,11 @@ provider error falls back to human contact / the original Telegram route. No cha
 messages, invention files, raw IPs or customer identities are stored in the support
 database; it contains daily aggregate counters only.
 
-The support Worker uses its own `SUPPORT_DB` / `researchvault-support-db`, with
-Wrangler's documented automatic provisioning (no fabricated resource ID). Its
-migrations are under `support/migrations`; never apply them to the article database.
+The support Worker uses its own `SUPPORT_DB` / `researchvault-support-db`. The account
+owner created this database and supplied ID `8953d374-1184-46e5-a34f-9860b32293a8`;
+the config and deployment guard pin that ID, without automatic provisioning. Its
+migrations are under `support/migrations` and have not been applied remotely;
+never apply them to the article database.
 It cannot approve cases, verify payments, open PDFs or read private patent records.
 
 ## Floating widget

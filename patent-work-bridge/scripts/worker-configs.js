@@ -28,7 +28,8 @@ export function validateWorkerConfigs(configs = WORKER_CONFIGS.map(url => JSON.p
   assert.equal(configs[1].d1_databases, undefined);
   assert.equal(configs[2].services, undefined);
   assert.deepEqual(configs[2].ai, { binding: 'AI' });
-  assert.deepEqual(configs[2].d1_databases, [{ binding: 'SUPPORT_DB', database_name: 'researchvault-support-db', migrations_dir: 'migrations' }]);
+  assert.deepEqual(configs[2].d1_databases, [{ binding: 'SUPPORT_DB', database_name: 'researchvault-support-db',
+    database_id: '8953d374-1184-46e5-a34f-9860b32293a8', migrations_dir: 'migrations' }]);
   assert.equal(configs[2].vars.SUPPORT_ENABLED, 'false');
   assert.deepEqual(configs[3].services, [
     { binding: 'PATENT_WORK', service: configs[0].name, entrypoint: 'PatentWork' },

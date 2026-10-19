@@ -12,7 +12,7 @@
     "SUPPORT_ALLOWED_ORIGINS": "https://researchvaultagent.ir,https://www.researchvaultagent.ir,https://researchvault-patent.pages.dev"
   },
   "d1_databases": [
-    { "binding": "SUPPORT_DB", "database_name": "researchvault-support-db", "migrations_dir": "migrations" }
+    { "binding": "SUPPORT_DB", "database_name": "researchvault-support-db", "database_id": "8953d374-1184-46e5-a34f-9860b32293a8", "migrations_dir": "migrations" }
   ],
   "triggers": { "crons": [] }
 }
