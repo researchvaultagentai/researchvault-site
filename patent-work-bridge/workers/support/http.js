@@ -25,10 +25,15 @@ export async function supportHttp(request, env, fetcher = fetch) {
   if (url.pathname === '/v1/config') {
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers });
     const siteKey = String(env.TURNSTILE_SITE_KEY || '');
-    const ready = env.SUPPORT_ENABLED === 'true' && Boolean(env.TURNSTILE_SECRET) &&
-      typeof env.AI?.run === 'function' && typeof env.SUPPORT_DB?.prepare === 'function' &&
-      /^[a-zA-Z0-9_-]{10,100}$/.test(siteKey);
-    return Response.json(ready ? { configured: true, turnstileSiteKey: siteKey } : { configured: false }, { headers });
+    const issues = [];
+    if (env.SUPPORT_ENABLED !== 'true') issues.push('support_disabled');
+    if (!env.TURNSTILE_SECRET) issues.push('turnstile_secret_missing');
+    if (!/^[a-zA-Z0-9_-]{10,100}$/.test(siteKey)) issues.push('turnstile_site_key_missing');
+    if (typeof env.AI?.run !== 'function') issues.push('ai_binding_missing');
+    if (typeof env.SUPPORT_DB?.prepare !== 'function') issues.push('support_database_binding_missing');
+    return Response.json(issues.length
+      ? { configured: false, issues }
+      : { configured: true, turnstileSiteKey: siteKey }, { headers });
   }
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...headers,
     'access-control-allow-methods': 'POST', 'access-control-allow-headers': 'content-type' } });
