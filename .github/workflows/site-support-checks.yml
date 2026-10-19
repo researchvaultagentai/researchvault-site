@@ -1,0 +1,36 @@
+name: Site support checks
+on:
+  push:
+    branches: [feature/site-support-launch, feature/english-support-launch]
+  pull_request:
+    paths:
+      - assets/rv-support-*.js
+      - functions/support/**
+      - patent/assets/patent.js
+      - patent/en/index.html
+      - deploy/patent-en/**
+      - test/site-support.test.mjs
+      - .github/workflows/site-support-checks.yml
+permissions:
+  contents: read
+jobs:
+  support:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+      - name: Check support routes and service facts
+        run: node --test test/site-support.test.mjs
+      - name: Check English build and portal isolation
+        run: |
+          if [ -f deploy/patent-en/build.mjs ]; then
+            node --test deploy/patent-en/test/*.test.mjs
+          fi
+      - name: Compile Pages Functions without deployment
+        run: |
+          if [ -f deploy/patent-en/build.mjs ]; then
+            cd deploy/patent-en
+          fi
+          npx --yes wrangler@4.147.0 pages functions build functions --outdir .wrangler/support-functions --compatibility-date 2026-10-01

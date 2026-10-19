@@ -21,3 +21,11 @@
   window.Patent={API,$,$$,api,me,sha256,toast,requestOtp,verifyOtp,ensureLogin,user:null};
   document.addEventListener('DOMContentLoaded',init);
 })();
+
+// Additive, isolated service guide. It has no access to Patent auth or bot state.
+(() => {
+  if (document.getElementById('rv-support-module')) return;
+  const script = document.createElement('script');
+  script.id = 'rv-support-module'; script.type = 'module'; script.src = '/assets/rv-support-widget.js';
+  document.head.append(script);
+})();
