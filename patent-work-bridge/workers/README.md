@@ -147,8 +147,11 @@ npm run check:workers
 commands/delivery, support budget reservation, intent fallback and HTTP challenge
 checks. Service bindings are exercised through the same service handlers in local
 tests, not the Cloudflare RPC runtime. Worker source syntax/config topology pass.
-Wrangler/workerd compilation, browser visual QA, real inference and live account
-integration have not been performed in this environment.
+GitHub-hosted Wrangler dry-run compilation passed for all four Workers in
+[the preparation run](https://github.com/researchvaultagentai/researchvault-site/actions/runs/39178650230).
+The deployment job in that run was skipped because the request is inactive.
+Cloudflare RPC execution, browser visual QA, real inference and live account
+integration still require their own validation.
 
 After installing Wrangler from the package's development dependencies:
 
@@ -170,6 +173,33 @@ prepared in [GITHUB_DEPLOYMENT.md](GITHUB_DEPLOYMENT.md). It uses new repository
 secrets and a separate exact-source activation commit; it does not use the chat
 browser or an account password. No automatic remote migration is bundled into
 deployment.
+
+## Cloudflare Workers Builds (current setup)
+
+The account owner configures Cloudflare; repository changes are maintained through
+GitHub. This path uses the existing Cloudflare GitHub App connection and its own
+Cloudflare build token, without adding GitHub repository secrets or activating the
+alternative Actions deployment request.
+
+For each new Worker, select the production branch
+`feature/patent-work-connection-prep` under Settings > Build > Branch control.
+Keep preview builds disabled, the build command empty and the root directory set to
+`patent-work-bridge`. Selecting `main` fails before installation because this
+preparation directory is not present on that branch.
+
+The first target is `researchvault-patent-work`, with deploy command:
+
+```sh
+npx wrangler@4.147.0 deploy --config workers/work/wrangler.jsonc
+```
+
+Use a dedicated patent build token, not any existing article-platform token.
+Later targets must each use their matching name and config from the table above,
+helpers before orchestrator. A push affecting this directory after the branch
+change triggers a new build. Retrying an older `main` commit is not verification
+of the new branch. Inspect the new source commit and actual Cloudflare deployment
+result before recording success; the four-service architecture is not live merely
+because the first helper has deployed.
 
 References checked 2026-10-18:
 
