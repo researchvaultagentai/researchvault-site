@@ -1,5 +1,6 @@
 import { D1WorkStore } from '../../src/d1-store.js';
 import { identifier, requireValue, sha256 } from '../../src/contracts.js';
+import { STAGES } from '../../src/workflow.js';
 
 function storeFor(env) {
   requireValue(env.PATENT_DB?.prepare, 'patent_database_required');
@@ -105,6 +106,7 @@ export function createPatentAdminControl(env) {
         return { case_id: state.caseId, report_language: state.reportLanguage, input_revision: state.inputRevision,
           state_version: state.version, package_sha256: state.packageHash,
           run_id: state.run?.id || null, phase: state.run?.phase || 'awaiting_admin',
+          stage: state.run ? STAGES[state.run.stageIndex] || null : null,
           checkpoint_sha256: state.run?.checkpointHash || null };
       });
       return { cases, next_after_case_id: cases.length === limit ? cases.at(-1).case_id : null };
@@ -118,6 +120,27 @@ export function createPatentAdminControl(env) {
       const actor = adminActor(env, adminId);
       return storeFor(env).execute({ caseId, commandId, expectedVersion, actor,
         event: { type: 'approve_stage', runId, inputRevision, resultHash } });
+    },
+  };
+}
+
+// Bind this role to the Telegram queue viewer. It has no approval, execution,
+// document, payment or password method; the administrator allowlist still applies.
+export function createPatentQueueView(env) {
+  return {
+    async queue(input) {
+      const result = await createPatentAdminControl(env).queue(input);
+      return {
+        cases: result.cases.map(item => ({
+          case_id: item.case_id,
+          report_language: item.report_language,
+          input_revision: item.input_revision,
+          state_version: item.state_version,
+          phase: item.phase,
+          stage: item.stage,
+        })),
+        next_after_case_id: result.next_after_case_id,
+      };
     },
   };
 }

@@ -7,6 +7,14 @@ migrations, authenticated service calls or customer-facing integrations work.
 Keep delivery disabled during setup. Verify schema and authenticated runtime
 calls separately before enabling any case processing or notifications.
 
+`PatentQueueView` is a separate read-only RPC role for the Telegram queue viewer.
+It returns case identifiers, language, revision and workflow status. It cannot
+approve stages, trigger execution or retrieve documents, hashes or passwords.
+Provide `PATENT_ADMIN_IDS` as an operator-managed secret; no identifier is baked
+into source or overwritten by a plaintext `vars` default. Missing configuration
+denies access. A Telegram caller must also verify the webhook secret and private
+administrator identity before using this binding.
+
 For dashboard-only setup on a database where all three bridge tables are absent,
 use `../../setup/dashboard-bootstrap.sql`. It creates the final schema and records
 the two migration filenames in Wrangler's default `d1_migrations` table, preserving

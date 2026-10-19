@@ -39,7 +39,7 @@ export function validateWorkerConfigs(configs = WORKER_CONFIGS.map(url => JSON.p
   assert.deepEqual(configs[3].d1_databases, [{ binding: 'PATENT_DB', database_name: 'researchvault-patent-db',
     database_id: '89090b29-61fd-4002-bb75-fea8cfda70a5', migrations_dir: '../../migrations' }]);
   assert.equal(configs[3].vars.PATENT_OUTBOX_ENABLED, 'false');
-  assert.equal(configs[3].vars.PATENT_ADMIN_IDS, '');
+  assert.equal(configs[3].vars.PATENT_ADMIN_IDS, undefined, 'Administrator IDs belong in an operator-managed secret');
   assert.equal(configs[1].vars.PATENT_TELEGRAM_ENABLED, 'false');
   return configs;
 }

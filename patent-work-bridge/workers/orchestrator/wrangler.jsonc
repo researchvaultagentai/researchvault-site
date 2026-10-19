@@ -6,7 +6,7 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [],
-  "vars": { "PATENT_OUTBOX_ENABLED": "false", "PATENT_ADMIN_IDS": "" },
+  "vars": { "PATENT_OUTBOX_ENABLED": "false" },
   "services": [
     { "binding": "PATENT_WORK", "service": "researchvault-patent-work", "entrypoint": "PatentWork" },
     { "binding": "PATENT_NOTIFY", "service": "researchvault-patent-notifications", "entrypoint": "PatentNotifications" },

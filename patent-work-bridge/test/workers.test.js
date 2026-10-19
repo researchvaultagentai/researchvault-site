@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { D1WorkStore } from '../src/d1-store.js';
-import { createPatentOrchestrator, createPatentClientControl, createPatentAdminControl } from '../workers/orchestrator/service.js';
+import { createPatentOrchestrator, createPatentClientControl, createPatentAdminControl, createPatentQueueView } from '../workers/orchestrator/service.js';
 import { createPatentWorkService } from '../workers/work/service.js';
 import { createPatentNotificationService } from '../workers/notifications/service.js';
 import { privateHttp } from '../workers/shared.js';
@@ -60,6 +60,30 @@ test('client RPC replay does not create extra inputs, notifications or execution
     reportLanguage: 'en', packageHash: prepared.packageHash, commandId: 'submit_1', expectedVersion: 0 });
   assert.deepEqual(replay.state, submitted.state);
   assert.equal((await store.pending()).length, 1);
+});
+
+test('read-only queue role exposes bounded status metadata without mutating cases or outbox', async t => {
+  const { env, store } = await fixture(t);
+  const view = createPatentQueueView(env);
+  assert.deepEqual(Object.keys(view), ['queue']);
+  const before = await store.read('case_1');
+  const events = await store.pending();
+  const result = await view.queue({ adminId: 'admin_1', limit: 10 });
+  assert.deepEqual(result.cases, [{ case_id: 'case_1', report_language: 'en', input_revision: 1,
+    state_version: 2, phase: 'awaiting_admin', stage: null }]);
+  assert.equal(result.next_after_case_id, null);
+  assert.deepEqual(await store.read('case_1'), before);
+  assert.deepEqual(await store.pending(), events);
+  await assert.rejects(view.queue({ adminId: 'not_admin' }), { code: 'admin_required' });
+});
+
+test('queue access stays blocked without the secret and plaintext allowlists fail config validation', async t => {
+  const { env } = await fixture(t);
+  delete env.PATENT_ADMIN_IDS;
+  await assert.rejects(createPatentQueueView(env).queue({ adminId: 'admin_1' }), { code: 'admin_required' });
+  const config = structuredClone(validateWorkerConfigs());
+  config[3].vars.PATENT_ADMIN_IDS = 'some_admin';
+  assert.throws(() => validateWorkerConfigs(config));
 });
 
 test('disconnected Work/Telegram keeps events queued instead of inventing delivery success', async t => {

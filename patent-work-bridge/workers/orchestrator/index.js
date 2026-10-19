@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { createPatentOrchestrator, createPatentClientControl, createPatentAdminControl } from './service.js';
+import { createPatentOrchestrator, createPatentClientControl, createPatentAdminControl, createPatentQueueView } from './service.js';
 import { privateHttp } from '../shared.js';
 
 export class PatentOrchestrator extends WorkerEntrypoint {
@@ -18,6 +18,10 @@ export class PatentAdminControl extends WorkerEntrypoint {
   async queue(input) { return createPatentAdminControl(this.env).queue(input); }
   async authorizeRun(input) { return createPatentAdminControl(this.env).authorizeRun(input); }
   async approveStage(input) { return createPatentAdminControl(this.env).approveStage(input); }
+}
+
+export class PatentQueueView extends WorkerEntrypoint {
+  async queue(input) { return createPatentQueueView(this.env).queue(input); }
 }
 
 export default { fetch: privateHttp };
