@@ -82,8 +82,10 @@ database; it contains daily aggregate counters only.
 The support Worker uses its own `SUPPORT_DB` / `researchvault-support-db`. The account
 owner created this database and supplied ID `8953d374-1184-46e5-a34f-9860b32293a8`;
 the config and deployment guard pin that ID, without automatic provisioning. Its
-migrations are under `support/migrations` and have not been applied remotely;
-never apply them to the article database.
+migrations are under `support/migrations`. The owner confirmed creating the
+`researchvault_support_budget` counter table through the Cloudflare D1 Console.
+This session has not executed or independently read back remote SQL; the deployment
+scripts do not run migrations. Never apply support SQL to the article database.
 It cannot approve cases, verify payments, open PDFs or read private patent records.
 
 ## Floating widget
