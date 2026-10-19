@@ -11,8 +11,8 @@ const ANSWERS = {
     fa: 'برای پرونده اختراع، حساب بسازید، توافق‌نامه محرمانگی را بررسی کنید و مدارک را در کارتابل خصوصی بارگذاری کنید. برای دریافت مقاله، DOI یا عنوان دقیق را به ربات تلگرام بفرستید.',
   },
   documents: {
-    en: 'Technical drawings: PDF, JPG or PNG. Descriptions: Word or PDF. Video: up to 20 MB and 7 minutes, reviewed by the patent agent. Submit confidential technical material only inside the private case portal after the confidentiality agreement.',
-    fa: 'نقشه فنی: PDF، JPG یا PNG. شرح و توضیحات: Word یا PDF. ویدیو: حداکثر ۲۰ مگابایت و ۷ دقیقه، برای بررسی کارگزار. مدارک فنی محرمانه را فقط پس از توافق‌نامه محرمانگی در کارتابل خصوصی ارسال کنید.',
+    en: 'Technical drawings: PDF, JPG or PNG. Descriptions: Word or PDF. Video: up to 20 MB and 7 minutes, reviewed by the patent agent. Audio and narration must be in English. Submit confidential technical material only inside the private case portal after the confidentiality agreement.',
+    fa: 'نقشه فنی: PDF، JPG یا PNG. شرح و توضیحات: Word یا PDF. ویدیو: حداکثر ۲۰ مگابایت و ۷ دقیقه، برای بررسی کارگزار. صوت و گفتار باید انگلیسی باشد. مدارک فنی محرمانه را فقط پس از توافق‌نامه محرمانگی در کارتابل خصوصی ارسال کنید.',
   },
   confidentiality: {
     en: 'Please keep confidential invention details and documents out of this public support chat. Review the confidentiality agreement and use the private case portal for technical disclosures.',
@@ -31,8 +31,8 @@ const ANSWERS = {
     fa: 'برای گفت‌وگو با کارگزار اختراع در تلگرام به @Ata_Mahmoudinezhad پیام بدهید. پاسخ‌گویی به زمان حضور کارگزار بستگی دارد.',
   },
   pricing: {
-    en: 'The planned international first-stage report is USD 1,111 and can be purchased separately from later services. A submitted revision requiring a new run after work begins is USD 111 per revision package. Draft edits and corrections to our mistakes are free. The invoice and accepted terms govern payment; ask the agent to confirm current availability and fees.',
-    fa: 'قیمت برنامه‌ریزی‌شده گزارش مرحله اول برای مشتری بین‌المللی ۱۱۱۱ دلار است و مستقل از مراحل بعدی ارائه می‌شود. بازبینی نیازمند اجرای دوباره پس از شروع کار، برای هر بسته تغییرات ۱۱۱ دلار است. ویرایش پیش‌نویس و اصلاح خطای ما رایگان است. هزینه خدمات ایران را کارگزار در پیش‌فاکتور مشخص می‌کند.',
+    en: 'The international first-stage report is USD 1,111 and can be purchased separately from later services. A submitted revision requiring a new run after work begins is USD 111 per revision package. Draft edits and corrections to our mistakes are free. The invoice and accepted terms govern payment; ask the agent to confirm current availability and fees.',
+    fa: 'قیمت گزارش مرحله اول برای مشتری بین‌المللی ۱۱۱۱ دلار است و مستقل از مراحل بعدی ارائه می‌شود. بازبینی نیازمند اجرای دوباره پس از شروع کار، برای هر بسته تغییرات ۱۱۱ دلار است. ویرایش پیش‌نویس و اصلاح خطای ما رایگان است. هزینه خدمات ایران را کارگزار در پیش‌فاکتور مشخص می‌کند.',
   },
 };
 

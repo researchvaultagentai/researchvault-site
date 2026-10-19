@@ -17,11 +17,19 @@ async function readJson(request) {
 
 export async function supportHttp(request, env, fetcher = fetch) {
   const url = new URL(request.url);
-  if (url.pathname !== '/v1/chat') return new Response('Not found', { status: 404 });
+  if (!['/v1/chat', '/v1/config'].includes(url.pathname)) return new Response('Not found', { status: 404 });
   const origin = request.headers.get('origin');
   const allowed = String(env.SUPPORT_ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
   if (!origin || !allowed.includes(origin)) return new Response('Forbidden', { status: 403 });
   const headers = { 'access-control-allow-origin': origin, vary: 'Origin', 'cache-control': 'no-store' };
+  if (url.pathname === '/v1/config') {
+    if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers });
+    const siteKey = String(env.TURNSTILE_SITE_KEY || '');
+    const ready = env.SUPPORT_ENABLED === 'true' && Boolean(env.TURNSTILE_SECRET) &&
+      typeof env.AI?.run === 'function' && typeof env.SUPPORT_DB?.prepare === 'function' &&
+      /^[a-zA-Z0-9_-]{10,100}$/.test(siteKey);
+    return Response.json(ready ? { configured: true, turnstileSiteKey: siteKey } : { configured: false }, { headers });
+  }
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { ...headers,
     'access-control-allow-methods': 'POST', 'access-control-allow-headers': 'content-type' } });
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405, headers });

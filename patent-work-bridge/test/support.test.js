@@ -123,3 +123,16 @@ test('public support validates origin and challenge hostname/action before readi
   assert.equal((await valid.json()).source, 'service_guide');
   assert.equal(valid.headers.get('access-control-allow-origin'), 'https://researchvault-patent.pages.dev');
 });
+
+test('public support configuration stays unavailable until all challenge and AI dependencies exist', async t => {
+  const { env, calls } = fixture(t);
+  Object.assign(env, { SUPPORT_ALLOWED_ORIGINS: 'https://researchvault-patent.pages.dev' });
+  const get = () => new Request('https://support.internal/v1/config', { headers: { origin: 'https://researchvault-patent.pages.dev' } });
+  assert.deepEqual(await (await supportHttp(get(), env)).json(), { configured: false });
+  Object.assign(env, { TURNSTILE_SECRET: 'NEVER_PUBLIC', TURNSTILE_SITE_KEY: '0x4_TEST_PUBLIC_KEY' });
+  const ready = await supportHttp(get(), env);
+  assert.deepEqual(await ready.json(), { configured: true, turnstileSiteKey: '0x4_TEST_PUBLIC_KEY' });
+  env.SUPPORT_ENABLED = 'false';
+  assert.deepEqual(await (await supportHttp(get(), env)).json(), { configured: false });
+  assert.equal(calls.length, 0);
+});
