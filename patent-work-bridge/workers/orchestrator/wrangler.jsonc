@@ -1,0 +1,24 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "researchvault-patent-orchestrator",
+  "main": "index.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "vars": { "PATENT_OUTBOX_ENABLED": "false" },
+  "services": [
+    { "binding": "PATENT_WORK", "service": "researchvault-patent-work", "entrypoint": "PatentWork" },
+    { "binding": "PATENT_NOTIFY", "service": "researchvault-patent-notifications", "entrypoint": "PatentNotifications" },
+    { "binding": "SUPPORT_AI", "service": "researchvault-support", "entrypoint": "SupportAssistant" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PATENT_DB",
+      "database_name": "researchvault-patent-db",
+      "database_id": "89090b29-61fd-4002-bb75-fea8cfda70a5",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "triggers": { "crons": [] }
+}
