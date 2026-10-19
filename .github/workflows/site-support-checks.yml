@@ -6,6 +6,7 @@ on:
     paths:
       - assets/rv-support-*.js
       - functions/support/**
+      - wrangler.toml
       - patent/assets/patent.js
       - patent/en/index.html
       - deploy/patent-en/**
