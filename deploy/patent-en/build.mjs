@@ -13,6 +13,24 @@ const assets = [
   'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js',
   'patent/contracts/nda-en.html', 'patent/contracts/pct-en.html',
 ];
+const billingAssets = {
+  'payments.js': 'international-payments.js',
+  'payments-config.js': 'international-payments-config.js',
+  'payments.css': 'international-payments.css',
+  'usdt-trc20-address.svg': 'usdt-trc20-address.svg',
+};
+
+export function addInternationalBilling(html, source) {
+  if (source === 'patent/en/index.html') {
+    html = html.replace('</main>', '<section class="section"><div class="wrap card"><h2>International payments</h2><p>USDT on TRON (TRC20) is available against an issued invoice in your private portal. Payment is confirmed after receipt review. PayPal is not available yet.</p><a class="btn btn-secondary" href="/patent/en/payments/">View payment options</a></div></section></main>');
+  }
+  if (source === 'patent/en/dashboard/index.html') {
+    const anchor = '<div class="card" style="margin-top:18px"><h3>Documents</h3>';
+    if (!html.includes(anchor)) throw new Error('International billing dashboard anchor changed');
+    html = html.replace(anchor, '<div class="card" style="margin-top:18px"><h3>International payments</h3><p>View your issued USD invoices, pay with USDT on TRON (TRC20), and submit a transaction receipt for review. PayPal is not available yet.</p><a class="btn btn-primary" href="/patent/en/payments/">Pay an invoice / payment status</a></div>' + anchor);
+  }
+  return html;
+}
 
 async function write(relative, content) {
   const target = path.join(output, relative);
@@ -29,6 +47,7 @@ async function copyEnglishPages(directory = 'patent/en') {
     }
     if (!source.endsWith('.html')) throw new Error('Unexpected English source: ' + source);
     let html = await readFile(path.join(repository, source), 'utf8');
+    html = addInternationalBilling(html, source);
     if (!/<html\b[^>]*lang="en"/i.test(html)) throw new Error('Non-English page: ' + source);
     const isHome = source === 'patent/en/index.html';
     const target = isHome ? 'index.html' : source;
@@ -64,11 +83,15 @@ export async function build() {
     await cp(path.join(repository, asset), target);
   }
   await cp(path.join(here, 'english-host.js'), path.join(output, 'patent/assets/english-host.js'));
+  for (const [source, target] of Object.entries(billingAssets)) {
+    await cp(path.join(here, source), path.join(output, 'patent/assets', target));
+  }
   await copyEnglishPages();
+  await write('patent/en/payments/index.html', await readFile(path.join(here, 'payments.html'), 'utf8'));
   await write('_redirects', '/patent/en / 302\n/patent/en/ / 302\n/patent/en/index.html / 302\n');
   await write('_headers', '/*\n  Referrer-Policy: no-referrer\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n');
   await write('_routes.json', JSON.stringify({ version: 1, include: ['/api/*', '/support/*'], exclude: [] }, null, 2) + '\n');
-  await write('robots.txt', `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /patent/en/account/\nDisallow: /patent/en/intake/\nDisallow: /patent/en/dashboard/\nDisallow: /patent/en/contract/\nSitemap: ${ORIGIN}/sitemap.xml\n`);
+  await write('robots.txt', `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /patent/en/account/\nDisallow: /patent/en/intake/\nDisallow: /patent/en/dashboard/\nDisallow: /patent/en/contract/\nDisallow: /patent/en/payments/\nSitemap: ${ORIGIN}/sitemap.xml\n`);
   await write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${ORIGIN}/</loc></url><url><loc>${ORIGIN}/patent/en/privacy.html</loc></url></urlset>\n`);
   await write('404.html', '<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found — ResearchVault Patent</title><link rel="stylesheet" href="/patent/assets/patent.css"></head><body class="en-page"><main class="section"><div class="wrap card"><h1>Page not found</h1><p><a href="/">Return to ResearchVault Patent</a></p></div></main></body></html>\n');
   return output;

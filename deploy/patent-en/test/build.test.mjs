@@ -99,3 +99,18 @@ test('English deployment includes the support modules and the agreed standalone 
   assert.match(home, /US\$111 per revision package/);
   assert.doesNotMatch(home, /1,500|2,500|Complex Stage 1/);
 });
+
+test('billing appears only in the isolated generated portal and leaves its source dashboard unchanged', async () => {
+  const source = await readFile(path.join(root, 'patent/en/dashboard/index.html'), 'utf8');
+  assert.doesNotMatch(source, /\/payments\//);
+  const dashboard = await readFile(path.join(output, 'patent/en/dashboard/index.html'), 'utf8');
+  const home = await readFile(path.join(output, 'index.html'), 'utf8');
+  assert.match(dashboard, /href="\/patent\/en\/payments\/"/);
+  assert.match(home, /href="\/patent\/en\/payments\/"/);
+  const page = await readFile(path.join(output, 'patent/en/payments/index.html'), 'utf8');
+  assert.match(page, /name="robots" content="noindex,nofollow"/);
+  assert.match(page, /TRON · TRC20 only/);
+  assert.match(page, /PayPal/);
+  assert.doesNotMatch(page, /paypal\.com|pay\.me|wise\.com/);
+  assert.deepEqual(await readFile(path.join(output, 'patent/assets/dashboard-en.js')), await readFile(path.join(root, 'patent/assets/dashboard-en.js')));
+});

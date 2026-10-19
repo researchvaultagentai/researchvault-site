@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>International payments — ResearchVault Patent</title>
+  <link rel="stylesheet" href="/patent/assets/patent.css">
+  <link rel="stylesheet" href="/patent/assets/international-payments.css">
+</head>
+<body class="en-page">
+<main class="section payment-page">
+  <div class="wrap">
+    <a class="payment-back" href="/patent/en/dashboard/">← Back to client portal</a>
+    <div class="payment-heading">
+      <span class="badge">International client billing</span>
+      <h1>A clear invoice. A traceable payment.</h1>
+      <p>Stage 1 is US$1,111. Later stages are optional. Revisions requiring a new analysis run after work starts are US$111 per revision package.</p>
+    </div>
+    <div id="paymentNotice" class="notice" role="status" aria-live="polite">Loading your account…</div>
+    <div id="paymentLogin" class="card hidden">
+      <h2>Sign in to view your invoice</h2>
+      <p>Your case and payment reference stay together in your private client portal.</p>
+      <a class="btn btn-primary" href="/patent/en/account/?next=/patent/en/payments/">Sign in / create account</a>
+    </div>
+    <div id="billingWorkspace" class="hidden">
+      <div class="billing-layout">
+        <section class="card billing-invoices" aria-labelledby="invoiceHeading">
+          <span class="payment-step">01 · Your invoice</span>
+          <h2 id="invoiceHeading">Choose a case</h2>
+          <label for="paymentCase">International case</label>
+          <select id="paymentCase"></select>
+          <div id="paymentInvoices" class="invoice-options"></div>
+          <p class="small">Transfer only against an issued invoice. If the amount or service looks wrong, contact us before paying.</p>
+          <a class="payment-contact" href="https://t.me/Ata_Mahmoudinezhad" target="_blank" rel="noopener noreferrer">Ask Ata about billing ↗</a>
+        </section>
+        <section class="card transfer-card" aria-labelledby="transferHeading">
+          <span class="payment-step">02 · Payment method</span>
+          <div class="method-title"><h2 id="transferHeading">USDT</h2><span class="network-pill">TRON · TRC20 only</span></div>
+          <div id="transferEmpty" class="notice">Select an eligible USD invoice to see the receiving address and exact amount.</div>
+          <div id="transferDetails" class="hidden">
+            <div class="payment-total"><span>Net amount to arrive</span><strong id="usdtAmount"></strong><span id="invoiceSummary" class="small"></span></div>
+            <p class="small">For this invoice, we accept 1 USDT per USD invoiced. Your wallet or exchange may charge a separate transfer fee; the amount arriving must match the invoice.</p>
+            <div class="wallet-row">
+              <img class="wallet-qr" src="/patent/assets/usdt-trc20-address.svg" width="148" height="148" alt="QR code for the ResearchVault USDT receiving address">
+              <div class="wallet-info"><label for="walletAddress">Receiving address</label><input id="walletAddress" class="mono" readonly spellcheck="false" aria-label="USDT TRC20 receiving address"><button id="copyWallet" class="btn btn-secondary" type="button">Copy address</button><span id="copyStatus" class="small" role="status" aria-live="polite"></span></div>
+            </div>
+            <p class="network-warning"><b>Use USDT on TRON (TRC20).</b> Do not send TRX or use ERC20, BEP20 or another network. The QR contains the address only: confirm the network and amount in your wallet.</p>
+            <p id="refundTerms" class="small"></p>
+            <form id="receiptForm">
+              <span class="payment-step">03 · Submit your receipt</span>
+              <label for="transactionId">TRON transaction ID (TxID)</label>
+              <input id="transactionId" name="transaction_id" class="mono" type="text" minlength="64" maxlength="64" pattern="[0-9a-fA-F]{64}" autocomplete="off" spellcheck="false" required placeholder="64-character transaction hash">
+              <label class="receipt-consent"><input id="receiptAcknowledged" type="checkbox" required><span>I have sent the invoiced amount to this address on TRON (TRC20). I understand that the receipt is reviewed before payment is confirmed.</span></label>
+              <button id="submitReceipt" class="btn btn-primary" type="submit">Submit for payment review</button>
+              <p class="small">Save your transaction record. Submitting a receipt does not confirm payment. You can also attach a wallet or exchange receipt in your case’s Payment proof section.</p>
+            </form>
+            <div id="receiptStatus" class="notice hidden" role="status" aria-live="polite"></div>
+            <div id="receiptHistory" class="receipt-history"></div>
+          </div>
+          <div class="paypal-placeholder"><div><b>PayPal</b><p class="small">Not available yet. Please contact us if you need an alternative before paying.</p></div><span class="method-unavailable">Not available</span></div>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="/patent/assets/english-host.js"></script>
+<script src="/patent/assets/patent.js"></script>
+<script type="module" src="/patent/assets/international-payments.js"></script>
+</body>
+</html>

@@ -36,8 +36,13 @@ jobs:
           fi
           npx --yes wrangler@4.147.0 pages functions build functions --outdir .wrangler/support-functions --compatibility-date 2026-10-01
       - name: Install isolated browser test tooling
-        run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1
+        run: npm install --no-save --package-lock=false --ignore-scripts playwright@1.56.1 pngjs@7.0.0 jsqr@1.4.0
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Verify bilingual mobile and desktop interactions
         run: node test/site-support.browser.mjs
+      - name: Verify international invoice payments
+        run: |
+          if [ -f deploy/patent-en/test/payments.browser.mjs ]; then
+            node deploy/patent-en/test/payments.browser.mjs
+          fi
