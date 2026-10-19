@@ -6,13 +6,22 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [],
-  "ai": { "binding": "AI" },
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
-    "SUPPORT_ENABLED": "false",
+    "SUPPORT_ENABLED": "true",
     "SUPPORT_ALLOWED_ORIGINS": "https://researchvaultagent.ir,https://www.researchvaultagent.ir,https://researchvault-patent.pages.dev"
   },
   "d1_databases": [
-    { "binding": "SUPPORT_DB", "database_name": "researchvault-support-db", "database_id": "8953d374-1184-46e5-a34f-9860b32293a8", "migrations_dir": "migrations" }
+    {
+      "binding": "SUPPORT_DB",
+      "database_name": "researchvault-support-db",
+      "database_id": "8953d374-1184-46e5-a34f-9860b32293a8",
+      "migrations_dir": "migrations"
+    }
   ],
-  "triggers": { "crons": [] }
+  "triggers": {
+    "crons": []
+  }
 }
