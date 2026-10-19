@@ -1,5 +1,5 @@
 -- Preparation only. This is intentionally outside patent-api/migrations.
--- Apply only to a separate test D1 database until the live adapters are reviewed.
+-- Apply only to the dedicated patent D1; keep adapters/delivery disabled until reviewed.
 CREATE TABLE IF NOT EXISTS patent_work_bridge_state (
   case_id TEXT PRIMARY KEY,
   version INTEGER NOT NULL CHECK (version >= 0),
