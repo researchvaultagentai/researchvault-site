@@ -1,8 +1,13 @@
 # Dedicated Workers, support and deployment
 
-Status: source and configuration prepared; **not deployed**. Interactive Cloudflare
-sign-in was not completed in this session. No Worker, webhook, database, schedule or
-production route has been modified by the patent deployment scripts.
+Status: infrastructure rollout in progress. The private `researchvault-patent-work`
+helper deployed successfully from source `6f8fa1fee81c3131aa2646930580a7878f672256`
+(Cloudflare version `054524ca-c15a-429e-b2f1-5952b73a3333`). Each remaining Worker
+still needs its own successful build verification. Case execution, public support
+and Telegram delivery remain disabled. Interactive Cloudflare sign-in was not
+completed in this session; the account owner configured native Workers Builds.
+No article-bot resource is a deployment target and no SQL migrations have been run
+by these deployment scripts.
 
 | Worker | Responsibility | Orchestrator binding / named entrypoint |
 | --- | --- | --- |
