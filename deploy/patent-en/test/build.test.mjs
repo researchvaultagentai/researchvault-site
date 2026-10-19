@@ -21,7 +21,7 @@ const emitted = await files(output);
 
 test('output includes only English pages, required public assets and deployment metadata', async () => {
   for (const file of emitted) {
-    assert.match(file, /^(?:index\.html|404\.html|_(?:headers|redirects|routes\.json)|robots\.txt|sitemap\.xml|assets\/patent-hero-robot\.png|patent\/(?:en\/|assets\/|contracts\/(?:nda-en|pct-en)\.html))/);
+    assert.match(file, /^(?:index\.html|404\.html|_(?:headers|redirects|routes\.json)|robots\.txt|sitemap\.xml|assets\/(?:patent-hero-robot\.png|rv-support-(?:widget|faq)\.js)|patent\/(?:en\/|assets\/|contracts\/(?:nda-en|pct-en)\.html))/);
     if (file.endsWith('.html') && !file.startsWith('patent/contracts/')) {
       const html = await readFile(path.join(output, file), 'utf8');
       assert.match(html, /<html lang="en" dir="ltr">/);
@@ -61,7 +61,7 @@ test('copied agreements and shared runtime remain byte-identical to the existing
     const config = html.indexOf('src="/patent/assets/english-host.js"');
     assert.ok(config > 0 && config < html.indexOf('/patent.js"'), file);
   }
-  assert.deepEqual(JSON.parse(await readFile(path.join(output, '_routes.json'), 'utf8')), { version: 1, include: ['/api/*'], exclude: [] });
+  assert.deepEqual(JSON.parse(await readFile(path.join(output, '_routes.json'), 'utf8')), { version: 1, include: ['/api/*', '/support/*'], exclude: [] });
 });
 
 test('English header keeps service links on the new host and Persian/admin links on .ir', async () => {
@@ -88,4 +88,14 @@ test('English header keeps service links on the new host and Persian/admin links
     '/', '/', '/patent/en/account/', 'https://researchvaultagent.ir/patent/',
     'https://researchvaultagent.ir/patent/admin/', 'https://researchvaultagent.ir/',
   ]);
+});
+
+test('English deployment includes the support modules and the agreed standalone Stage 1 fee', async () => {
+  for (const file of ['assets/rv-support-widget.js', 'assets/rv-support-faq.js']) {
+    assert.deepEqual(await readFile(path.join(output, file)), await readFile(path.join(root, file)));
+  }
+  const home = await readFile(path.join(output, 'index.html'), 'utf8');
+  assert.match(home, /US\$1,111/);
+  assert.match(home, /US\$111 per revision package/);
+  assert.doesNotMatch(home, /1,500|2,500|Complex Stage 1/);
 });

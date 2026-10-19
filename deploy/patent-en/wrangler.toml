@@ -5,3 +5,7 @@ compatibility_date = "2026-10-18"
 [[services]]
 binding = "PATENT_API"
 service = "researchvault-patent-api"
+
+[[services]]
+binding = "SUPPORT_SERVICE"
+service = "researchvault-support"
