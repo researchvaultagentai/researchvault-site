@@ -1,3 +1,5 @@
+import { submitInternationalReceipt } from '../_lib/international-payments.js';
+
 const PRODUCTION_ORIGIN = 'https://researchvault-patent.pages.dev';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS']);
@@ -27,6 +29,10 @@ export async function onRequest({ request, env }) {
   if (!env.PATENT_API?.fetch) return failure(503, 'Patent portal is not connected yet');
 
   try {
+    if (url.pathname === '/api/international-payments/receipts') {
+      return await submitInternationalReceipt(request, env);
+    }
+    if (url.pathname.startsWith('/api/international-payments/')) return failure(404, 'Not found');
     // Service binding calls the existing dedicated Patent Worker. Authentication,
     // authorization, cookies, contract evidence, storage and billing stay there.
     // Forward the original Request so its body and client context are preserved.
