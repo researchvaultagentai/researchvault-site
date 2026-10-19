@@ -128,11 +128,25 @@ test('public support configuration stays unavailable until all challenge and AI 
   const { env, calls } = fixture(t);
   Object.assign(env, { SUPPORT_ALLOWED_ORIGINS: 'https://researchvault-patent.pages.dev' });
   const get = () => new Request('https://support.internal/v1/config', { headers: { origin: 'https://researchvault-patent.pages.dev' } });
-  assert.deepEqual(await (await supportHttp(get(), env)).json(), { configured: false });
+  assert.deepEqual(await (await supportHttp(get(), env)).json(), {
+    configured: false, issues: ['turnstile_secret_missing', 'turnstile_site_key_missing'],
+  });
   Object.assign(env, { TURNSTILE_SECRET: 'NEVER_PUBLIC', TURNSTILE_SITE_KEY: '0x4_TEST_PUBLIC_KEY' });
   const ready = await supportHttp(get(), env);
   assert.deepEqual(await ready.json(), { configured: true, turnstileSiteKey: '0x4_TEST_PUBLIC_KEY' });
   env.SUPPORT_ENABLED = 'false';
-  assert.deepEqual(await (await supportHttp(get(), env)).json(), { configured: false });
+  assert.deepEqual(await (await supportHttp(get(), env)).json(), { configured: false, issues: ['support_disabled'] });
+  assert.equal(calls.length, 0);
+});
+
+test('readiness reports missing bindings without exposing configured secret values or invoking the model', async t => {
+  const { env, calls } = fixture(t);
+  Object.assign(env, { SUPPORT_ALLOWED_ORIGINS: 'https://researchvault-patent.pages.dev',
+    TURNSTILE_SECRET: 'PRIVATE_SECRET_VALUE', TURNSTILE_SITE_KEY: '0x4_TEST_PUBLIC_KEY' });
+  delete env.AI; delete env.SUPPORT_DB;
+  const response = await supportHttp(new Request('https://support.internal/v1/config', {
+    headers: { origin: 'https://researchvault-patent.pages.dev' },
+  }), env);
+  assert.deepEqual(await response.json(), { configured: false, issues: ['ai_binding_missing', 'support_database_binding_missing'] });
   assert.equal(calls.length, 0);
 });

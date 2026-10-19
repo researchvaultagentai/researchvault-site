@@ -12,6 +12,15 @@ TURNSTILE_SECRET as an encrypted secret. Keep secret values out of source.
 The configuration endpoint exposes only the public key and remains unavailable
 until the key, secret, AI and support database are present.
 
+Wrangler preserves dashboard-managed variables with `keep_vars: true`, so the
+runtime public site key is not removed by a subsequent native build. Encrypted
+secrets remain dashboard-managed and are never placed in the repository.
+
+When unconfigured, `/v1/config` reports fixed issue codes for missing components.
+These contain no secret values, database identifiers or customer information.
+The Pages connector filters these codes and also distinguishes a missing
+service binding, wrong target/entrypoint, rejected origin and unavailable route.
+
 Add SUPPORT_SERVICE as a service binding on the main Pages project, pointing to
 the dedicated support Worker's default HTTP handler. The English project's
 Wrangler file declares the same binding. Redeploy Pages after dashboard binding
