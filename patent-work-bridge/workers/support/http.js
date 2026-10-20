@@ -57,6 +57,6 @@ export async function supportHttp(request, env, fetcher = fetch) {
     if (!verification.ok || !challenge.success || challenge.action !== 'support_chat' ||
       challenge.hostname !== new URL(origin).hostname) return Response.json({ error: 'challenge_failed' }, { status: 403, headers });
     const result = await createSupportService(env).chat({ message: body.message, language: body.language, history: body.historyScope === scope ? body.history : [], scope });
-    return Response.json(result, { headers });
+    return Response.json({ ...result, serviceScope: scope }, { headers });
   } catch { return Response.json({ error: 'support_unavailable' }, { status: 400, headers }); }
 }
