@@ -1,3 +1,5 @@
+import { supportScopeForPage } from '../../assets/rv-support-context.js';
+
 const ORIGINS = new Set([
   'https://researchvaultagent.ir',
   'https://www.researchvaultagent.ir',
@@ -26,6 +28,9 @@ export async function onRequest({ request, env }) {
   if (!configuration && origin !== url.origin) return failure(403);
   if (!configuration && !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') || '')) return failure(415);
   if (!configuration && Number(request.headers.get('content-length') || 0) > 16384) return failure(413);
+  const page = request.headers.get('x-rv-support-page') || '/';
+  const scope = supportScopeForPage(url.origin, page);
+  if (!scope) return failure(400);
   if (typeof env.SUPPORT_SERVICE?.fetch !== 'function') {
     return configuration
       ? unavailable('support_service_binding_missing')
@@ -35,6 +40,8 @@ export async function onRequest({ request, env }) {
     const forward = new Request('https://support.internal/v1/' + (configuration ? 'config' : 'chat'), request);
     for (const name of [...forward.headers.keys()]) forward.headers.delete(name);
     forward.headers.set('origin', url.origin);
+    forward.headers.set('x-rv-support-page', page);
+    forward.headers.set('x-rv-support-scope', scope);
     if (!configuration) forward.headers.set('content-type', 'application/json');
     const ip = request.headers.get('cf-connecting-ip');
     if (ip) forward.headers.set('cf-connecting-ip', ip);
