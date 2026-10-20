@@ -21,7 +21,7 @@ const emitted = await files(output);
 
 test('output includes only English pages, required public assets and deployment metadata', async () => {
   for (const file of emitted) {
-    assert.match(file, /^(?:index\.html|404\.html|_(?:headers|redirects|routes\.json)|robots\.txt|sitemap\.xml|assets\/(?:patent-hero-robot\.png|rv-support-(?:widget|faq)\.js)|patent\/(?:en\/|assets\/|contracts\/(?:nda-en|pct-en)\.html))/);
+    assert.match(file, /^(?:index\.html|404\.html|_(?:headers|redirects|routes\.json)|robots\.txt|sitemap\.xml|assets\/(?:patent-hero-robot\.png|rv-support-(?:widget|faq|context)\.js)|patent\/(?:en\/|assets\/|contracts\/(?:nda-en|pct-en)\.html))/);
     if (file.endsWith('.html') && !file.startsWith('patent/contracts/')) {
       const html = await readFile(path.join(output, file), 'utf8');
       assert.match(html, /<html lang="en" dir="ltr">/);
@@ -91,7 +91,7 @@ test('English header keeps service links on the new host and Persian/admin links
 });
 
 test('English deployment includes the support modules and the agreed standalone Stage 1 fee', async () => {
-  for (const file of ['assets/rv-support-widget.js', 'assets/rv-support-faq.js']) {
+  for (const file of ['assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js']) {
     assert.deepEqual(await readFile(path.join(output, file)), await readFile(path.join(root, file)));
   }
   const home = await readFile(path.join(output, 'index.html'), 'utf8');
