@@ -26,6 +26,6 @@
 (() => {
   if (document.getElementById('rv-support-module')) return;
   const script = document.createElement('script');
-  script.id = 'rv-support-module'; script.type = 'module'; script.src = '/assets/rv-support-widget.js';
+  script.id = 'rv-support-module'; script.type = 'module'; script.async = true; script.src = '/assets/rv-support-widget.js';
   document.head.append(script);
 })();

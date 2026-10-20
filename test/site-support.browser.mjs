@@ -6,15 +6,30 @@ const context = await readFile(new URL('../assets/rv-support-context.js', import
 const faq = await readFile(new URL('../assets/rv-support-faq.js', import.meta.url), 'utf8');
 const browser = await chromium.launch();
 let checks = 0;
-async function setup(language, viewport, configured = true, origin = 'https://researchvault-patent.pages.dev', pathname = '/', scopedReply = true) {
+async function assertLauncherWithinViewport(page, viewport) {
+  await page.locator('.launcher').waitFor({ state: 'visible' });
+  const box = await page.locator('.launcher').boundingBox();
+  assert.ok(box && box.width >= 48 && box.height >= 48 && box.x >= 12 && box.y >= 0 &&
+    box.x + box.width <= viewport.width - 12 && box.y + box.height <= viewport.height - 12,
+    'The whole support button must be visible and tappable before scrolling: ' + JSON.stringify(box));
+  assert.equal(await page.evaluate(() => window.scrollY), 0);
+}
+async function setup(language, viewport, configured = true, origin = 'https://researchvault-patent.pages.dev', pathname = '/', scopedReply = true, blockedPageScript = false) {
   const page = await browser.newPage({ viewport });
   const errors = []; const calls = [];
+  let releasePageScript, sawPageScript;
+  const pageScriptGate = new Promise(resolve => { releasePageScript = resolve; });
+  const pageScriptRequested = new Promise(resolve => { sawPageScript = resolve; });
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
     window.turnstile = { render(_element, options) { queueMicrotask(() => options.callback('TEST_CHALLENGE')); return 1; }, remove() {} };
   });
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/test-delayed-page-script.js') {
+      sawPageScript(); await pageScriptGate;
+      return route.fulfill({ contentType: 'text/javascript', body: '' });
+    }
     if (url.pathname === '/assets/rv-support-widget.js') return route.fulfill({ contentType: 'text/javascript', body: widget });
     if (url.pathname === '/assets/rv-support-context.js') return route.fulfill({ contentType: 'text/javascript', body: context });
     if (url.pathname === '/assets/rv-support-faq.js') return route.fulfill({ contentType: 'text/javascript', body: faq });
@@ -29,12 +44,15 @@ async function setup(language, viewport, configured = true, origin = 'https://re
       return route.fulfill({ json: { reply: 'Helpful reply <img src=x onerror=alert(1)>', source: 'assistant', ...(scopedReply ? { serviceScope: body.historyScope } : {}) } });
     }
     return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="' + language +
-      '" dir="' + (language === 'fa' ? 'rtl' : 'ltr') + '"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
-      '<body><main><h1>ResearchVault</h1><p>Existing website content</p></main><script type="module" src="/assets/rv-support-widget.js"></script></body></html>' });
+      '" dir="' + (language === 'fa' ? 'rtl' : 'ltr') + '"><head><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<script async type="module" src="/assets/rv-support-widget.js"></script></head><body><main style="min-height:3000px"><h1>ResearchVault</h1><p>Existing website content</p></main>' +
+      (blockedPageScript ? '<script src="/test-delayed-page-script.js"></script>' : '') + '</body></html>' });
   });
-  await page.goto(origin + pathname);
+  await page.goto(origin + pathname, { waitUntil: blockedPageScript ? 'commit' : 'load' });
+  if (blockedPageScript) await pageScriptRequested;
+  await assertLauncherWithinViewport(page, viewport);
   await page.locator('.launcher').click();
-  return { page, errors, calls };
+  return { page, errors, calls, releasePageScript };
 }
 try {
   for (const language of ['fa', 'en']) for (const viewport of [
@@ -131,5 +149,14 @@ try {
     assert.equal(calls.length, 1); assert.deepEqual(errors, []);
     await page.close(); checks++;
   }
-  console.log('Passed ' + checks + ' browser scenarios: three service branches, language and history isolation, bilingual viewports, safe rendering and unavailable-AI fallback.');
+  for (const language of ['fa', 'en']) {
+    const { page, errors, calls, releasePageScript } = await setup(language, { width: 320, height: 640 }, true,
+      'https://www.researchvaultagent.ir', '/', true, true);
+    assert.equal(await page.evaluate(() => document.readyState), 'loading');
+    assert.equal(await page.locator('.panel').isVisible(), true);
+    assert.equal(await page.evaluate(() => window.scrollY), 0);
+    assert.deepEqual(calls, []); assert.deepEqual(errors, []);
+    releasePageScript(); await page.close(); checks++;
+  }
+  console.log('Passed ' + checks + ' browser scenarios: initial mobile visibility without scrolling, slow-page independence, three service branches, language and history isolation, safe rendering and unavailable-AI fallback.');
 } finally { await browser.close(); }
