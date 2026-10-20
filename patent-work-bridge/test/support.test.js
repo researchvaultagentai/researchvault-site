@@ -238,3 +238,19 @@ test('private Telegram calls retain the original explicit default guide and rout
   assert.equal(result.reply, faqAnswer('pricing', 'en')); assert.equal(calls.length, 0);
   assert.equal(directIntent('10.1000/example').kind, 'article_doi');
 });
+
+
+test('international phase questions state the exclusion without importing another service', async t => {
+  for (const [message, language] of [
+    ['Do you handle national phase entry?', 'en'],
+    ['When do your international-phase services end?', 'en'],
+    ['خدمات شما شامل فاز ملی می‌شود؟', 'fa'],
+  ]) {
+    const { service, calls } = fixture(t);
+    const reply = await service.chat({ message, language, scope: 'patent_pct' });
+    assert.equal(reply.source, 'service_guide');
+    assert.equal(reply.reply, faqAnswer('scope', language, 'patent_pct'));
+    assert.match(reply.reply, language === 'en' ? /outside the base agreement/ : /خارج از محدوده قرارداد پایه/);
+    assert.equal(calls.length, 0);
+  }
+});

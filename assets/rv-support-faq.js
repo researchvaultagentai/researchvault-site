@@ -109,15 +109,19 @@ const SCOPED_ANSWERS = {
   },
   patent_pct: {
     start: {
-      en: 'This is the international PCT service. Create your account, complete the required identity and confidentiality steps, then submit the technical disclosure in the private portal. You can order the Stage 1 patentability and prior-art report on its own; drafting and filing are optional later engagements.',
-      fa: 'این بخش خدمات بین‌المللی PCT است. حساب بسازید، مراحل لازم احراز هویت و محرمانگی را تکمیل و افشای فنی را در کارتابل خصوصی ثبت کنید. گزارش مرحله اول ارزیابی اختراع‌پذیری و پیشینه مستقل ارائه می‌شود و تدوین و ثبت، قراردادهای اختیاری بعدی هستند.',
+      en: 'This is the international PCT service. Create your account, complete the required identity and confidentiality steps, then submit the technical disclosure in the private portal. You can order the Stage 1 patentability and prior-art report on its own; drafting and filing are optional later engagements. PCT filing services cover the international phase only, through its completion; national- or regional-phase entry and prosecution are outside the base agreement.',
+      fa: 'این بخش خدمات بین‌المللی PCT است. حساب بسازید، مراحل لازم احراز هویت و محرمانگی را تکمیل و افشای فنی را در کارتابل خصوصی ثبت کنید. گزارش مرحله اول ارزیابی اختراع‌پذیری و پیشینه مستقل ارائه می‌شود و تدوین و ثبت، قراردادهای اختیاری بعدی هستند. خدمات ثبت PCT فقط تا پایان مرحله بین‌المللی ارائه می‌شود؛ ورود و پیگیری در فاز ملی یا منطقه‌ای خارج از محدوده قرارداد پایه است.',
+    },
+    scope: {
+      en: 'Our PCT services cover the international phase only, through its completion. National- or regional-phase entry and prosecution in individual countries or regions are outside the base agreement and are not included in this service. Arrange any subsequent national- or regional-phase services and costs independently.',
+      fa: 'خدمات ثبت PCT ما فقط تا پایان مرحله بین‌المللی ارائه می‌شود. ورود و پیگیری پرونده در فاز ملی یا منطقه‌ای کشورها خارج از محدوده قرارداد پایه است و جزو این خدمت نیست. خدمات و هزینه‌های فاز ملی یا منطقه‌ای بعدی باید جداگانه توسط متقاضی ترتیب داده شود.',
     },
     documents: ANSWERS.documents,
     confidentiality: ANSWERS.confidentiality,
     tracking: ANSWERS.tracking,
     pricing: {
-      en: 'International Stage 1 is USD 1,111 and can be purchased separately. A revision package requiring a new analysis run after work starts is USD 111. Draft edits before processing and corrections to our mistakes are free. The site lists PCT drafting and filing at USD 4,500–7,000, subject to a separate quotation; official fees, third-party costs and national-phase entry are separate.',
-      fa: 'مرحله اول بین‌المللی ۱۱۱۱ دلار و مستقل از مراحل بعدی است. بسته ویرایش نیازمند اجرای دوباره تحلیل پس از شروع کار ۱۱۱ دلار است؛ ویرایش پیش‌نویس قبل از پردازش و اصلاح خطای ما رایگان است. بازه راهنمای تدوین و ثبت PCT در سایت ۴۵۰۰ تا ۷۰۰۰ دلار، تابع پیش‌فاکتور جداگانه است؛ هزینه رسمی، ثالث و فاز ملی جدا هستند.',
+      en: 'International Stage 1 is USD 1,111 and can be purchased separately. A revision package requiring a new analysis run after work starts is USD 111. Draft edits before processing and corrections to our mistakes are free. The site lists PCT drafting and filing at USD 4,500–7,000, subject to a separate quotation; official fees and third-party costs are separate. PCT services cover only the international phase through its completion. National- or regional-phase entry and prosecution are outside the base agreement and are not included.',
+      fa: 'مرحله اول بین‌المللی ۱۱۱۱ دلار و مستقل از مراحل بعدی است. بسته ویرایش نیازمند اجرای دوباره تحلیل پس از شروع کار ۱۱۱ دلار است؛ ویرایش پیش‌نویس قبل از پردازش و اصلاح خطای ما رایگان است. بازه راهنمای تدوین و ثبت PCT در سایت ۴۵۰۰ تا ۷۰۰۰ دلار، تابع پیش‌فاکتور جداگانه است؛ هزینه رسمی و ثالث جدا هستند. خدمات PCT فقط تا پایان مرحله بین‌المللی است و ورود و پیگیری فاز ملی یا منطقه‌ای در قرارداد پایه ارائه نمی‌شود.',
     },
     human: {
       en: 'Contact the international PCT agent on Telegram: @Ata_Mahmoudinezhad. Keep confidential invention documents in your private case portal.',
@@ -145,6 +149,9 @@ export function supportLinks(scope = 'legacy') {
 
 export function scopedGuideAnswer(text, language, scope) {
   if (!isSupportScope(scope)) return null;
+  if (scope === 'patent_pct' && /(?:national|regional|international)[ -]+phase|فاز[\s‌]*(?:ملی|منطقه)|مرحله[\s‌]*بین[\s‌]*المللی/iu.test(text)) {
+    return faqAnswer('scope', language, scope);
+  }
   if (outsideSupportScope(text, scope)) return faqAnswer('start', language, scope);
   const topic = faqTopic(text);
   // A patent literature question is about prior art, not the paper retrieval service.
