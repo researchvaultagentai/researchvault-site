@@ -114,3 +114,18 @@ test('billing appears only in the isolated generated portal and leaves its sourc
   assert.doesNotMatch(page, /paypal\.com|pay\.me|wise\.com/);
   assert.deepEqual(await readFile(path.join(output, 'patent/assets/dashboard-en.js')), await readFile(path.join(root, 'patent/assets/dashboard-en.js')));
 });
+
+test('international scope and the signing version agree across the published site and contract', async () => {
+  const home = await readFile(path.join(output, 'index.html'), 'utf8');
+  const agreement = await readFile(path.join(output, 'patent/contracts/pct-en.html'), 'utf8');
+  const signing = await readFile(path.join(output, 'patent/en/contract/index.html'), 'utf8');
+  const version = agreement.match(/Version:<\/b> (PCT-EN-v\d+)/)?.[1];
+  assert.ok(version);
+  assert.ok(signing.includes("'" + version + "'"), 'signing evidence must use the displayed agreement version');
+  for (const html of [home, agreement]) {
+    assert.match(html, /through completion of the international phase/i);
+    assert.match(html, /National- or regional-phase entry and prosecution[^<]*outside the base agreement/i);
+    assert.doesNotMatch(html, /scheduled international publication date|not required to remain engaged|unless separately engaged/);
+  }
+  assert.match(agreement, /standalone Stage 1 engagement is completed upon delivery of its agreed report/);
+});
