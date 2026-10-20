@@ -205,7 +205,7 @@ test('public HTTP selects market from the production host and page, never a body
     }));
     assert.equal(response.status, 200);
     const result = await response.json();
-    assert.equal(result.reply, faqAnswer('pricing', 'en', scope)); assert.equal(calls.length, 0);
+    assert.equal(result.reply, faqAnswer('pricing', 'en', scope)); assert.equal(result.serviceScope, scope); assert.equal(calls.length, 0);
   }
 });
 
