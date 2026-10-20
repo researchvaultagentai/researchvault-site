@@ -10,7 +10,7 @@ const assets = [
   'patent/assets/patent.css', 'patent/assets/patent.js',
   'patent/assets/account.js', 'patent/assets/dashboard-en.js',
   'patent/assets/intake-en.js', 'patent/assets/signature.js',
-  'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js',
+  'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js',
   'patent/contracts/nda-en.html', 'patent/contracts/pct-en.html',
 ];
 const billingAssets = {

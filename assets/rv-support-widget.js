@@ -1,4 +1,5 @@
-import { faqAnswer, faqTopic, SUPPORT_LINKS } from './rv-support-faq.js';
+import { faqAnswer, scopedGuideAnswer, supportLinks } from './rv-support-faq.js';
+import { supportScopeForPage } from './rv-support-context.js';
 
 const WORDS = {
   en: { title: 'ResearchVault', subtitle: 'A little guidance, whenever you need it.', open: 'Ask ResearchVault',
@@ -13,6 +14,34 @@ const WORDS = {
     placeholder: 'درباره خدمات از ما بپرسید…', send: 'ارسال پیام', thinking: 'چند لحظه…',
     start: 'از کجا شروع کنم؟', documents: 'مدارک و ویدیو', articles: 'دریافت مقاله', human: 'گفت‌وگو با کارگزار',
     footer: 'راهنمای خدمات ResearchVault', unavailable: 'برای گفت‌وگو مستقیم، در تلگرام به کارگزار پیام بدهید.', },
+};
+
+
+const SERVICE_WORDS = {
+  articles: {
+    en: { title: 'ResearchVault · Paper support', subtitle: 'Help with research-paper requests.',
+      welcome: 'Looking for a research paper?', note: 'Please keep account and payment credentials out of this public chat.',
+      placeholder: 'Ask about paper retrieval…', human: 'Contact paper support', footer: 'Research-paper retrieval support' },
+    fa: { title: 'پشتیبانی دریافت مقاله', subtitle: 'راهنمای درخواست و دریافت مقاله علمی.',
+      welcome: 'برای دریافت مقاله راهنمایی می‌خواهید؟', note: 'رمز حساب و اطلاعات حساس پرداخت را در این چت عمومی نفرستید.',
+      placeholder: 'درباره دریافت مقاله بپرسید…', human: 'تماس با پشتیبانی مقاله', footer: 'راهنمای سرویس دریافت مقاله' },
+  },
+  patent_iran: {
+    en: { title: 'Iran · Patent support', subtitle: 'Patent services for Iranian clients.',
+      welcome: 'How can I help with your Iranian patent engagement?', placeholder: 'Ask about your Iranian patent service…',
+      human: 'Contact the Iran patent agent', footer: 'Iranian-client patent service' },
+    fa: { title: 'پشتیبانی اختراع · مشتری ایرانی', subtitle: 'راهنمای خدمات اختراع ایران و ایران + PCT.',
+      welcome: 'برای پرونده اختراع مشتری ایرانی راهنمایی می‌خواهید؟', placeholder: 'درباره خدمات اختراع مشتری ایرانی بپرسید…',
+      human: 'تماس با کارگزار اختراع ایران', footer: 'راهنمای کارگزاری اختراع مشتری ایرانی' },
+  },
+  patent_pct: {
+    en: { title: 'International · PCT support', subtitle: 'Help with your international patent engagement.',
+      welcome: 'How can I help with your PCT service?', placeholder: 'Ask about the international PCT service…',
+      human: 'Contact the PCT agent', footer: 'International PCT service' },
+    fa: { title: 'پشتیبانی بین‌المللی PCT', subtitle: 'راهنمای خدمات اختراع برای مشتری بین‌المللی.',
+      welcome: 'برای خدمات بین‌المللی PCT راهنمایی می‌خواهید؟', placeholder: 'درباره خدمات بین‌المللی PCT بپرسید…',
+      human: 'تماس با کارگزار بین‌المللی', footer: 'راهنمای خدمات بین‌المللی PCT' },
+  },
 };
 
 const CSS = `
@@ -45,7 +74,11 @@ export function mountSupportWidget() {
   const previous = document.getElementById('rv-support-widget');
   if (previous) return previous;
   const lang = document.documentElement.lang.toLowerCase().startsWith('fa') ? 'fa' : 'en';
-  const copy = WORDS[lang];
+  const scope = supportScopeForPage(window.location.origin, window.location.pathname);
+  if (!scope) return null;
+  const links = supportLinks(scope);
+  const copy = { ...WORDS[lang], pricing: lang === 'fa' ? 'هزینه‌ها' : 'Fees',
+    tracking: lang === 'fa' ? 'پیگیری درخواست' : 'Track a request', ...SERVICE_WORDS[scope][lang] };
   let config = { ...(window.ResearchVaultSupportConfig || {}) };
   let configuration;
   const configure = () => {
@@ -66,7 +99,7 @@ export function mountSupportWidget() {
     })();
     return configuration;
   };
-  const host = document.createElement('div'); host.id = 'rv-support-widget'; host.dir = lang === 'fa' ? 'rtl' : 'ltr';
+  const host = document.createElement('div'); host.id = 'rv-support-widget'; host.dataset.supportScope = scope; host.dir = lang === 'fa' ? 'rtl' : 'ltr';
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>${CSS}</style><section class="panel" hidden role="dialog" aria-modal="false" aria-labelledby="rv-support-title">
     <header class="top"><span class="mark" aria-hidden="true">r</span><div class="brand"><b id="rv-support-title"></b><small></small></div><button class="close" type="button">×</button></header>
@@ -79,7 +112,7 @@ export function mountSupportWidget() {
   $('.launcher span').textContent = copy.open; $('.launcher').setAttribute('aria-label', copy.open);
   $('.close').setAttribute('aria-label', copy.close); $('.send').setAttribute('aria-label', copy.send);
   $('textarea').placeholder = copy.placeholder; $('textarea').setAttribute('aria-label', copy.placeholder);
-  $('.contact').href = SUPPORT_LINKS.human; $('.contact').textContent = `${copy.human} ↗`;
+  $('.contact').href = links.human; $('.contact').textContent = `${copy.human} ↗`;
   const challengeContainer = document.createElement('div'); challengeContainer.slot = 'challenge'; host.append(challengeContainer);
   let history = [], busy = false, challengeId, pending, destroyed = false;
   const append = (role, text) => {
@@ -90,9 +123,9 @@ export function mountSupportWidget() {
     if (open) $('textarea').focus(); else $('.launcher').focus(); };
   $('.launcher').onclick = () => show($('.panel').hidden); $('.close').onclick = () => show(false);
   root.addEventListener('keydown', event => { if (event.key === 'Escape') show(false); });
-  for (const topic of ['start', 'documents', 'articles', 'human']) {
+  for (const topic of (scope === 'articles' ? ['articles', 'pricing', 'tracking', 'human'] : ['start', 'documents', 'pricing', 'human'])) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'chip'; button.textContent = copy[topic];
-    button.onclick = () => { if (busy) return; append('user', copy[topic]); append('assistant', faqAnswer(topic, lang)); };
+    button.onclick = () => { if (busy) return; append('user', copy[topic]); append('assistant', faqAnswer(topic, lang, scope)); };
     $('.chips').append(button);
   }
   async function token() {
@@ -106,10 +139,13 @@ export function mountSupportWidget() {
     });
   }
   async function send() {
+    if (supportScopeForPage(window.location.origin, window.location.pathname) !== scope) {
+      host.rvSupportDestroy(); mountSupportWidget(); return;
+    }
     const message = $('textarea').value.trim(); if (!message || busy) return;
     busy = true; $('.send').disabled = true; $('textarea').value = ''; append('user', message);
     $('.status').textContent = copy.thinking; $('.status').hidden = false;
-    let reply = faqAnswer(faqTopic(message), lang);
+    let reply = scopedGuideAnswer(message, lang, scope);
     try {
       if (!reply) await configure();
       if (!reply && !destroyed && config.endpoint && config.turnstileSiteKey) {
@@ -120,8 +156,8 @@ export function mountSupportWidget() {
         pending = new AbortController(); const timeout = setTimeout(() => pending.abort(), 20000);
         let response;
         try { response = await fetch(endpoint.href, { method: 'POST', credentials: 'omit', redirect: 'error',
-          headers: { 'content-type': 'application/json' }, signal: pending.signal,
-          body: JSON.stringify({ message, language: lang, history: history.slice(-6), turnstileToken }) }); }
+          headers: { 'content-type': 'application/json', 'x-rv-support-page': window.location.pathname }, signal: pending.signal,
+          body: JSON.stringify({ message, language: lang, history: history.slice(-6), historyScope: scope, turnstileToken }) }); }
         finally { clearTimeout(timeout); }
         if (!response.ok) throw new Error('support_unavailable');
         const result = await response.json(); if (typeof result.reply !== 'string') throw new Error('invalid_reply');
@@ -129,7 +165,7 @@ export function mountSupportWidget() {
       }
     } catch { reply = null; }
     finally {
-      reply ||= `${copy.unavailable}\n@Ata_Mahmoudinezhad`;
+      reply ||= faqAnswer('human', lang, scope);
       append('assistant', reply);
       history.push({ role: 'user', content: message.slice(0, 500) }, { role: 'assistant', content: reply.slice(0, 500) });
       history = history.slice(-6); busy = false; pending = null; $('.send').disabled = false; $('.status').hidden = true;
@@ -149,6 +185,9 @@ export function mountSupportWidget() {
 if (typeof document !== 'undefined') {
   const boot = () => mountSupportWidget();
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
+  window.addEventListener('popstate', () => {
+    document.getElementById('rv-support-widget')?.rvSupportDestroy?.(); mountSupportWidget();
+  });
   new MutationObserver(() => {
     document.getElementById('rv-support-widget')?.rvSupportDestroy?.(); mountSupportWidget();
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-import { faqAnswer } from '../assets/rv-support-faq.js';
+import { faqAnswer, scopedGuideAnswer, supportFacts, supportLinks } from '../assets/rv-support-faq.js';
+import { supportScopeForPage, supportReplyInScope } from '../assets/rv-support-context.js';
 const root = path.resolve(import.meta.dirname, '..');
 const handlerPath = existsSync(path.join(root, 'functions/support/[[path]].js'))
   ? 'functions/support/[[path]].js' : 'deploy/patent-en/functions/support/[[path]].js';
@@ -32,6 +33,7 @@ test('configuration exposes only the public challenge key and a same-origin endp
   const env = { SUPPORT_SERVICE: { async fetch(req) {
     assert.equal(req.url, 'https://support.internal/v1/config');
     assert.equal(req.headers.get('origin'), host);
+    assert.equal(req.headers.get('x-rv-support-scope'), 'patent_pct');
     return Response.json({ configured: true, turnstileSiteKey: key, TURNSTILE_SECRET: 'NEVER_PUBLIC', password: 'PRIVATE' });
   } } };
   const response = await onRequest({ request: request('/support/config'), env });
@@ -89,4 +91,82 @@ test('shared runtime loads the isolated widget without changing the patent API o
   assert.match(widget, /fetch\('\/support\/config'/);
   assert.match(widget, /endpoint.origin !== window.location.origin/);
   assert.match(widget, /bubble.textContent = text/);
+});
+
+test('hostname and route choose the service independently of display language', () => {
+  for (const origin of ['https://researchvaultagent.ir', 'https://www.researchvaultagent.ir']) {
+    for (const pathname of ['/', '/index.html', '/pricing.html']) assert.equal(supportScopeForPage(origin, pathname), 'articles');
+    for (const pathname of ['/patent', '/patent/', '/patent/en/', '/patent/en/account/']) {
+      assert.equal(supportScopeForPage(origin, pathname), 'patent_iran');
+    }
+  }
+  for (const pathname of ['/', '/patent/en/', '/patent/en/payments/']) {
+    assert.equal(supportScopeForPage(host, pathname), 'patent_pct');
+  }
+  for (const pathname of ['//attacker.example/', '/patent?scope=patent_pct', '/patent#x', '/patent%2fen/']) {
+    assert.equal(supportScopeForPage(host, pathname), null);
+  }
+  assert.equal(supportScopeForPage('https://preview.researchvault-patent.pages.dev', '/'), null);
+});
+
+test('each language has its own branch facts, contacts and FAQ choices', () => {
+  for (const language of ['en', 'fa']) {
+    const articles = supportFacts(language, 'articles');
+    const iran = supportFacts(language, 'patent_iran');
+    const pct = supportFacts(language, 'patent_pct');
+    assert.doesNotMatch(articles, /patent|اختراع|PCT|1,111|۱۱۱۱|USD 111|۱۱۱ دلار/iu);
+    assert.doesNotMatch(iran, /1,111|۱۱۱۱|USD|دلار|USDT|PayPal|ResearchVaultAgentBot/iu);
+    assert.doesNotMatch(pct, /toman|تومان|ResearchVaultAgentBot|۶۰ تا ۱۲۰/iu);
+    for (const scope of ['articles', 'patent_iran', 'patent_pct']) {
+      for (const topic of ['start', 'pricing', 'human', 'documents']) {
+        assert.equal(supportReplyInScope(faqAnswer(topic, language, scope), scope), true);
+      }
+    }
+    assert.match(faqAnswer('pricing', language, 'patent_iran'), language === 'fa' ? /۶۰ تا ۱۲۰ میلیون تومان/ : /60–120 million toman/);
+    assert.match(faqAnswer('pricing', language, 'patent_pct'), language === 'fa' ? /۱۱۱۱ دلار/ : /USD 1,111/);
+  }
+  assert.equal(faqAnswer('articles', 'en', 'patent_iran'), null);
+  assert.equal(faqAnswer('articles', 'en', 'patent_pct'), null);
+  assert.equal(supportLinks('articles').portal, undefined);
+  assert.equal(supportLinks('patent_pct').articles, undefined);
+  assert.equal(supportLinks('patent_iran').payments, undefined);
+});
+
+test('out-of-branch questions stay in the active guide without quoting another tariff', () => {
+  for (const [scope, message] of [
+    ['articles', 'What is the patent filing price?'],
+    ['patent_iran', 'What is the USD fee for foreign clients?'],
+    ['patent_pct', 'قیمت ثبت برای مشتری ایرانی به تومان چقدر است؟'],
+    ['patent_pct', 'Find a paper by DOI'],
+  ]) {
+    assert.equal(scopedGuideAnswer(message, 'en', scope), faqAnswer('start', 'en', scope));
+  }
+  assert.match(scopedGuideAnswer('DOI', 'en', 'articles'), /DOI/);
+  assert.equal(supportReplyInScope('Patent report is USD 1,111', 'articles'), false);
+  assert.equal(supportReplyInScope('International Stage 1 is USD 1,111', 'patent_iran'), false);
+  assert.equal(supportReplyInScope('The fee is 60 million toman.', 'patent_pct'), false);
+  assert.equal(supportReplyInScope('Send a DOI to ResearchVaultAgentBot', 'patent_pct'), false);
+});
+
+test('Pages overwrites claimed scope and strips credentials before calling the Worker', async () => {
+  for (const [origin, pathname, scope] of [
+    ['https://researchvaultagent.ir', '/', 'articles'],
+    ['https://www.researchvaultagent.ir', '/patent/', 'patent_iran'],
+    ['https://www.researchvaultagent.ir', '/patent/en/', 'patent_iran'],
+    [host, '/', 'patent_pct'],
+  ]) {
+    let called = false;
+    const req = new Request(origin + '/support/chat', { method: 'POST', headers: {
+      origin, 'content-type': 'application/json', 'x-rv-support-page': pathname,
+      'x-rv-support-scope': 'client-cannot-select-a-different-market', cookie: 'private',
+    }, body: '{"message":"Explain my next step"}' });
+    const response = await onRequest({ request: req, env: { SUPPORT_SERVICE: { async fetch(forward) {
+      called = true;
+      assert.equal(forward.headers.get('x-rv-support-scope'), scope);
+      assert.equal(forward.headers.get('x-rv-support-page'), pathname);
+      assert.equal(forward.headers.get('cookie'), null);
+      return Response.json({ reply: 'Scoped' });
+    } } } });
+    assert.equal(response.status, 200); assert.equal(called, true);
+  }
 });
