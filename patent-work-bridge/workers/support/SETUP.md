@@ -35,3 +35,13 @@ Use the free plan and verify aggregate usage before increasing limits.
 Check the main and English widgets on mobile and desktop, the public config
 endpoint, one real anti-bot challenge and one AI reply in each language. Confirm
 that article requests and the separate Telegram patent queue continue working.
+
+## Website service boundaries
+
+| Production page | Support scope |
+| --- | --- |
+| `researchvaultagent.ir` and `www.researchvaultagent.ir`, outside `/patent` | Paper retrieval |
+| Either `.ir` host under `/patent`, including `/patent/en` | Iranian-client patent engagement |
+| `researchvault-patent.pages.dev`, all pages | International PCT engagement |
+
+Pages derives the service scope from the allowed production origin and page path, overwrites a client-supplied scope header, and forwards only public support data. The Worker checks the host/path mapping again. Display language never selects the market. Each website receives only its service facts and links; out-of-branch questions stay in the current guide. Cross-branch history and client-supplied assistant statements do not become service facts. The private Telegram RPC default retains its existing guide and classifier; DOI routing and article payments are unchanged.

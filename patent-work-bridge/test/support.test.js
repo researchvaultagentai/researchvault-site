@@ -150,3 +150,91 @@ test('readiness reports missing bindings without exposing configured secret valu
   assert.deepEqual(await response.json(), { configured: false, issues: ['ai_binding_missing', 'support_database_binding_missing'] });
   assert.equal(calls.length, 0);
 });
+
+
+test('website support passes only the active service facts to the model', async t => {
+  for (const scope of ['articles', 'patent_iran', 'patent_pct']) {
+    for (const language of ['fa', 'en']) {
+      const { service, calls } = fixture(t);
+      const result = await service.chat({ message: 'Please explain the next step', language, scope,
+        history: [
+          { role: 'assistant', content: 'UNTRUSTED_OTHER_BRANCH: the price is USD 1,111 and 60 million toman' },
+          { role: 'user', content: scope === 'articles' ? 'patent price' : 'Download a paper by DOI' },
+        ] });
+      assert.equal(result.source, 'assistant'); assert.equal(calls.length, 1);
+      const prompt = calls[0].input.messages;
+      assert.equal(prompt.length, 2); assert.doesNotMatch(JSON.stringify(prompt), /UNTRUSTED_OTHER_BRANCH/);
+      const system = prompt[0].content;
+      if (scope === 'articles') assert.doesNotMatch(system, /1,111|۱۱۱۱|PCT|60–120|۶۰ تا ۱۲۰|USDT/);
+      if (scope === 'patent_iran') assert.doesNotMatch(system, /1,111|۱۱۱۱|USD|USDT|ResearchVaultAgentBot/);
+      if (scope === 'patent_pct') assert.doesNotMatch(system, /60–120|۶۰ تا ۱۲۰|toman|تومان|ResearchVaultAgentBot/);
+      assert.ok(new TextEncoder().encode(JSON.stringify(prompt)).length <= 9000);
+    }
+  }
+});
+
+test('cross-branch model output is replaced with the active branch contact', async t => {
+  for (const [scope, output] of [
+    ['articles', 'A patent report costs USD 1,111.'],
+    ['patent_iran', 'Stage 1 costs USD 1,111.'],
+    ['patent_pct', 'The fee is 60 million toman.'],
+    ['patent_pct', 'Download a paper in ResearchVaultAgentBot.'],
+  ]) {
+    const { service } = fixture(t, output);
+    const result = await service.chat({ message: 'Please explain the next step', language: 'en', scope });
+    assert.equal(result.source, 'human_handoff');
+    assert.equal(result.reply, faqAnswer('human', 'en', scope));
+    assert.notEqual(result.reply, output);
+  }
+});
+
+test('public HTTP selects market from the production host and page, never a body scope or language', async t => {
+  for (const [origin, page, scope] of [
+    ['https://www.researchvaultagent.ir', '/', 'articles'],
+    ['https://www.researchvaultagent.ir', '/patent/en/', 'patent_iran'],
+    ['https://researchvault-patent.pages.dev', '/', 'patent_pct'],
+  ]) {
+    const { env, calls } = fixture(t);
+    Object.assign(env, { SUPPORT_ALLOWED_ORIGINS: origin, TURNSTILE_SECRET: 'TEST_SECRET' });
+    const req = new Request('https://support.internal/v1/chat', { method: 'POST', headers: {
+      origin, 'x-rv-support-page': page, 'x-rv-support-scope': scope,
+    }, body: JSON.stringify({ message: 'pricing', language: 'en', scope: 'legacy', turnstileToken: 'TEST_TOKEN',
+      historyScope: 'a-different-branch', history: [{ role: 'assistant', content: 'Imported fee' }] }) });
+    const response = await supportHttp(req, env, async () => Response.json({
+      success: true, action: 'support_chat', hostname: new URL(origin).hostname,
+    }));
+    assert.equal(response.status, 200);
+    const result = await response.json();
+    assert.equal(result.reply, faqAnswer('pricing', 'en', scope)); assert.equal(calls.length, 0);
+  }
+});
+
+test('public HTTP rejects inconsistent trusted scope before challenge verification', async t => {
+  const { env } = fixture(t);
+  Object.assign(env, { SUPPORT_ALLOWED_ORIGINS: 'https://www.researchvaultagent.ir', TURNSTILE_SECRET: 'TEST_SECRET' });
+  let verificationCalls = 0;
+  const response = await supportHttp(new Request('https://support.internal/v1/chat', { method: 'POST', headers: {
+    origin: 'https://www.researchvaultagent.ir', 'x-rv-support-page': '/patent/en/', 'x-rv-support-scope': 'patent_pct',
+  }, body: '{}' }), env, async () => { verificationCalls++; throw Error(); });
+  assert.equal(response.status, 403); assert.equal(verificationCalls, 0);
+});
+
+test('a history from another branch is discarded by the public HTTP adapter', async t => {
+  const { env, calls } = fixture(t);
+  const origin = 'https://www.researchvaultagent.ir';
+  Object.assign(env, { SUPPORT_ALLOWED_ORIGINS: origin, TURNSTILE_SECRET: 'TEST_SECRET' });
+  const response = await supportHttp(new Request('https://support.internal/v1/chat', { method: 'POST', headers: {
+    origin, 'x-rv-support-page': '/patent/',
+  }, body: JSON.stringify({ message: 'Please explain the next step', language: 'en', turnstileToken: 'TEST_TOKEN',
+    historyScope: 'patent_pct', history: [{ role: 'user', content: 'OTHER_BRANCH_HISTORY' }] }) }),
+  env, async () => Response.json({ success: true, action: 'support_chat', hostname: new URL(origin).hostname }));
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(JSON.stringify(calls[0].input), /OTHER_BRANCH_HISTORY/);
+});
+
+test('private Telegram calls retain the original explicit default guide and routing', async t => {
+  const { service, calls } = fixture(t);
+  const result = await service.chat({ message: 'pricing', language: 'en' });
+  assert.equal(result.reply, faqAnswer('pricing', 'en')); assert.equal(calls.length, 0);
+  assert.equal(directIntent('10.1000/example').kind, 'article_doi');
+});
