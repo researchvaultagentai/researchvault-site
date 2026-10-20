@@ -45,16 +45,18 @@ const SERVICE_WORDS = {
 };
 
 const CSS = `
-:host{all:initial;font-family:Inter,Vazirmatn,system-ui,sans-serif;position:fixed;inset-inline-end:22px;bottom:max(22px,env(safe-area-inset-bottom));z-index:2147480000;color:#16382d;font-size:14px;line-height:1.65}
+:host{all:initial;--rv-support-left:max(22px,env(safe-area-inset-left,0px));--rv-support-right:max(22px,env(safe-area-inset-right,0px));--rv-support-bottom:max(22px,env(safe-area-inset-bottom,0px));display:block;font-family:Inter,Vazirmatn,system-ui,sans-serif;position:fixed;top:auto;left:auto;right:var(--rv-support-right);bottom:var(--rv-support-bottom);width:max-content;max-width:calc(100vw - var(--rv-support-left) - var(--rv-support-right));margin:0;z-index:2147480000;color:#16382d;font-size:14px;line-height:1.65;direction:ltr;unicode-bidi:isolate}
+:host([dir="rtl"]){direction:rtl;right:auto;left:var(--rv-support-left)}
 *{box-sizing:border-box}button,textarea,a{font:inherit}button,a,textarea{outline-offset:4px}button{cursor:pointer}button:focus-visible,a:focus-visible,textarea:focus-visible{outline:3px solid #7dc8a5}button:disabled{cursor:wait;opacity:.65}[hidden]{display:none!important}
-.launcher{display:flex;align-items:center;gap:10px;border:1px solid #ffffff50;border-radius:50px;background:#173e32;color:white;padding:14px 20px;box-shadow:0 6px 28px #122d3233;transition:transform .2s,box-shadow .2s}.launcher:hover{transform:translateY(-2px);box-shadow:0 10px 32px #122d3240}.launcher svg{width:22px;height:22px}.launcher span{font-weight:600;font-size:13px}
-.panel{position:absolute;inset-inline-end:0;bottom:76px;width:min(382px,calc(100vw - 32px));height:min(590px,calc(100dvh - 116px));display:flex;flex-direction:column;border:1px solid #dde6df;border-radius:24px;background:#fff;box-shadow:0 22px 80px #1231252b;overflow:hidden;animation:appear .18s ease-out}
+.launcher{display:flex;align-items:center;justify-content:center;gap:10px;min-width:54px;min-height:54px;max-width:100%;border:1px solid #ffffff50;border-radius:50px;background:#173e32;color:white;padding:14px 20px;box-shadow:0 6px 28px #122d3233;transition:transform .2s,box-shadow .2s}.launcher:hover{transform:translateY(-2px);box-shadow:0 10px 32px #122d3240}.launcher svg{width:22px;height:22px;flex:0 0 22px}.launcher span{font-weight:600;font-size:13px}
+.panel{position:absolute;left:auto;right:0;bottom:76px;width:min(382px,calc(100vw - var(--rv-support-left) - var(--rv-support-right)));height:min(590px,calc(100dvh - var(--rv-support-bottom) - 100px));display:flex;flex-direction:column;border:1px solid #dde6df;border-radius:24px;background:#fff;box-shadow:0 22px 80px #1231252b;overflow:hidden;animation:appear .18s ease-out}
+:host([dir="rtl"]) .panel{left:0;right:auto}
 .top{display:flex;align-items:center;gap:11px;padding:20px;background:#f3f7f2;border-bottom:1px solid #e3eae2}.mark{width:39px;height:39px;display:grid;place-items:center;border-radius:13px;background:#173e32;color:#dcf5c8;font-family:Georgia,serif;font-size:22px;font-style:italic}.brand{flex:1}.brand b{display:block;font-size:14px}.brand small{display:block;color:#6c7e73;font-size:11px;margin-top:1px}.close{background:transparent;border:0;color:#53685a;font-size:26px;padding:0 5px;line-height:1.2}
 .content{padding:20px;overflow:auto;overscroll-behavior:contain;flex:1;background:linear-gradient(#fff,#fbfcfa)}.intro{margin:0 0 15px;font-size:18px;line-height:1.5;font-weight:600;letter-spacing:-.3px}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:19px}.chip{background:white;border:1px solid #dbe5da;color:#365b48;border-radius:10px;padding:7px 10px;font-size:11px;transition:background .15s}.chip:hover{background:#eff6eb}
 .bubble{font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 14px;max-width:94%;margin:9px 0;border-radius:15px;line-height:1.8}.assistant{background:#f0f4ed;border:1px solid #e7ede2;border-end-start-radius:3px}.user{background:#214e3c;color:#fff;margin-inline-start:auto;border-end-end-radius:3px}.status{font-size:12px;color:#5a7461;margin:8px 0}
 .contact{display:inline-flex;gap:7px;align-items:center;color:#2b644b;font-size:12px;text-decoration:none;border-bottom:1px solid #adc7b2;margin-top:8px}.note{font-size:10px;color:#7d887e;line-height:1.6;margin:14px 0 0;display:flex;gap:5px}.compose{border-top:1px solid #e4eae1;background:#fff;padding:12px 15px 10px}.input{display:flex;gap:8px;align-items:flex-end;background:#f6f8f4;border:1px solid #e4eae0;border-radius:14px;padding:8px 8px 8px 12px}textarea{border:0;background:transparent;resize:none;min-height:32px;max-height:90px;line-height:1.6;padding:4px 2px;width:100%;color:#173e32;font-size:13px}textarea:focus{outline:none}.send{border:0;border-radius:10px;background:#173e32;color:#fff;width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center}.send svg{height:17px;width:17px}.foot{font-size:9px;letter-spacing:.2px;text-align:center;color:#9aa596;margin-top:8px}.challenge{margin:5px 0;min-height:0}
 @keyframes appear{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@media(max-width:480px){:host{inset-inline-end:14px;bottom:max(14px,env(safe-area-inset-bottom))}.launcher{padding:14px}.launcher span{display:none}.panel{bottom:67px;width:calc(100vw - 28px);border-radius:21px}.content{padding:17px}.top{padding:17px}}
+@media(max-width:480px){:host{--rv-support-left:max(18px,env(safe-area-inset-left,0px));--rv-support-right:max(18px,env(safe-area-inset-right,0px));--rv-support-bottom:max(18px,env(safe-area-inset-bottom,0px))}.launcher{padding:14px;width:56px;height:56px}.launcher span{display:none}.panel{bottom:68px;width:calc(100vw - var(--rv-support-left) - var(--rv-support-right));border-radius:21px}.content{padding:17px}.top{padding:17px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}@media print{:host{display:none}}
 `;
 
@@ -184,8 +186,13 @@ export function mountSupportWidget() {
 }
 
 if (typeof document !== 'undefined') {
-  const boot = () => mountSupportWidget();
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
+  // The guide must not wait for unrelated fonts, images or trust-badge scripts.
+  // An async module in <head> can finish before <body> has been parsed.
+  const boot = () => { if (!document.body) return false; mountSupportWidget(); return true; };
+  if (!boot()) {
+    const bodyObserver = new MutationObserver(() => { if (boot()) bodyObserver.disconnect(); });
+    bodyObserver.observe(document.documentElement, { childList: true });
+  }
   window.addEventListener('popstate', () => {
     document.getElementById('rv-support-widget')?.rvSupportDestroy?.(); mountSupportWidget();
   });

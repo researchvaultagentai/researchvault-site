@@ -4,6 +4,14 @@ on:
     branches: [feature/site-support-launch, feature/english-support-launch]
   pull_request:
     paths:
+      - index.html
+      - about.html
+      - contact.html
+      - pricing.html
+      - privacy.html
+      - refund.html
+      - terms.html
+      - 404.html
       - assets/rv-support-*.js
       - functions/support/**
       - wrangler.toml
