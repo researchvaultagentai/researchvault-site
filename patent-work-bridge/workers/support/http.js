@@ -1,4 +1,5 @@
 import { createSupportService } from './service.js';
+import { supportScopeForPage } from '../../../assets/rv-support-context.js';
 
 async function readJson(request) {
   const reader = request.body?.getReader();
@@ -21,6 +22,9 @@ export async function supportHttp(request, env, fetcher = fetch) {
   const origin = request.headers.get('origin');
   const allowed = String(env.SUPPORT_ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean);
   if (!origin || !allowed.includes(origin)) return new Response('Forbidden', { status: 403 });
+  const scope = supportScopeForPage(origin, request.headers.get('x-rv-support-page') || '/');
+  const stampedScope = request.headers.get('x-rv-support-scope');
+  if (!scope || (stampedScope && stampedScope !== scope)) return new Response('Forbidden', { status: 403 });
   const headers = { 'access-control-allow-origin': origin, vary: 'Origin', 'cache-control': 'no-store' };
   if (url.pathname === '/v1/config') {
     if (request.method !== 'GET') return new Response('Method not allowed', { status: 405, headers });
@@ -52,7 +56,7 @@ export async function supportHttp(request, env, fetcher = fetch) {
     const challenge = await verification.json();
     if (!verification.ok || !challenge.success || challenge.action !== 'support_chat' ||
       challenge.hostname !== new URL(origin).hostname) return Response.json({ error: 'challenge_failed' }, { status: 403, headers });
-    const result = await createSupportService(env).chat({ message: body.message, language: body.language, history: body.history });
+    const result = await createSupportService(env).chat({ message: body.message, language: body.language, history: body.historyScope === scope ? body.history : [], scope });
     return Response.json(result, { headers });
   } catch { return Response.json({ error: 'support_unavailable' }, { status: 400, headers }); }
 }

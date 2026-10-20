@@ -5,7 +5,7 @@ on:
   pull_request:
     paths:
       - patent-work-bridge/**
-      - assets/rv-support-faq.js
+      - assets/rv-support-*.js
       - .github/workflows/patent-bridge-checks.yml
 permissions:
   contents: read
