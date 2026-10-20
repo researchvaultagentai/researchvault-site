@@ -6,7 +6,7 @@ const context = await readFile(new URL('../assets/rv-support-context.js', import
 const faq = await readFile(new URL('../assets/rv-support-faq.js', import.meta.url), 'utf8');
 const browser = await chromium.launch();
 let checks = 0;
-async function setup(language, viewport, configured = true, origin = 'https://researchvault-patent.pages.dev', pathname = '/') {
+async function setup(language, viewport, configured = true, origin = 'https://researchvault-patent.pages.dev', pathname = '/', scopedReply = true) {
   const page = await browser.newPage({ viewport });
   const errors = []; const calls = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -26,7 +26,7 @@ async function setup(language, viewport, configured = true, origin = 'https://re
       assert.equal(route.request().headers()['x-rv-support-page'], pathname);
       assert.equal(body.historyScope, origin.includes('pages.dev') ? 'patent_pct' : pathname.startsWith('/patent') ? 'patent_iran' : 'articles');
       calls.push(body);
-      return route.fulfill({ json: { reply: 'Helpful reply <img src=x onerror=alert(1)>', source: 'assistant' } });
+      return route.fulfill({ json: { reply: 'Helpful reply <img src=x onerror=alert(1)>', source: 'assistant', ...(scopedReply ? { serviceScope: body.historyScope } : {}) } });
     }
     return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="' + language +
       '" dir="' + (language === 'fa' ? 'rtl' : 'ltr') + '"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
@@ -118,6 +118,17 @@ try {
     await page.locator('textarea').fill('قیمت');
     await page.locator('.send').click();
     await page.locator('.assistant').filter({ hasText: 'پلن‌های اعتبار' }).waitFor();
+    await page.close(); checks++;
+  }
+
+  {
+    const { page, calls, errors } = await setup('en', { width: 390, height: 844 }, true,
+      'https://researchvault-patent.pages.dev', '/', false);
+    await page.locator('textarea').fill('Please explain my next step');
+    await page.locator('.send').click();
+    await page.locator('.assistant').filter({ hasText: '@Ata_Mahmoudinezhad' }).waitFor();
+    assert.doesNotMatch(await page.locator('.assistant').last().textContent(), /Helpful reply/);
+    assert.equal(calls.length, 1); assert.deepEqual(errors, []);
     await page.close(); checks++;
   }
   console.log('Passed ' + checks + ' browser scenarios: three service branches, language and history isolation, bilingual viewports, safe rendering and unavailable-AI fallback.');
