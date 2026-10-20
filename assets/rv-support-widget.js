@@ -1,5 +1,5 @@
 import { faqAnswer, scopedGuideAnswer, supportLinks } from './rv-support-faq.js';
-import { supportScopeForPage } from './rv-support-context.js';
+import { supportScopeForPage, supportReplyInScope } from './rv-support-context.js';
 
 const WORDS = {
   en: { title: 'ResearchVault', subtitle: 'A little guidance, whenever you need it.', open: 'Ask ResearchVault',
@@ -160,7 +160,8 @@ export function mountSupportWidget() {
           body: JSON.stringify({ message, language: lang, history: history.slice(-6), historyScope: scope, turnstileToken }) }); }
         finally { clearTimeout(timeout); }
         if (!response.ok) throw new Error('support_unavailable');
-        const result = await response.json(); if (typeof result.reply !== 'string') throw new Error('invalid_reply');
+        const result = await response.json();
+        if (result.serviceScope !== scope || !supportReplyInScope(result.reply, scope)) throw new Error('invalid_reply');
         reply = result.reply.slice(0, 4000);
       }
     } catch { reply = null; }
