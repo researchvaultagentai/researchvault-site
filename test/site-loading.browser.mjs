@@ -86,7 +86,12 @@ try {
       await t.page.goto(origin + (file === 'index.html' ? '/' : '/' + file), { waitUntil: 'commit' });
       await assertArticleReadable(t.page, file);
       assert.equal(await t.page.evaluate(() => document.readyState), 'loading');
-      if (file === 'index.html') await visualProof(t.page, 'article-delayed-scripts');
+      if (file === 'index.html') {
+        // Screenshot tooling waits for document.fonts.ready even when swap
+        // already paints readable fallback text. Keep main JS held for proof.
+        t.releaseFont();
+        await visualProof(t.page, 'article-delayed-scripts');
+      }
     } finally { t.releaseMain(); t.releaseFont(); await t.context.close(); }
     checks++;
   }
@@ -128,7 +133,10 @@ try {
         assert.equal(await t.page.locator('.topbar a[href="/patent/en/account/"]').count(), 0);
       }
       assert.deepEqual(t.errors, []);
-      if (path === '/patent/' && !javaScriptEnabled) await visualProof(t.page, 'patent-without-js');
+      if (path === '/patent/' && !javaScriptEnabled) {
+        t.releaseFont();
+        await visualProof(t.page, 'patent-without-js');
+      }
     } finally { t.releaseFont(); await t.context.close(); }
     checks++;
   }
