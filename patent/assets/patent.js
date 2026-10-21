@@ -14,12 +14,12 @@
     ensureTrustStyles();
     document.body.insertAdjacentHTML('beforeend',`<footer class="footer no-print"><div class="wrap patent-footer-inner"><div class="patent-footer-copy">خدمات ثبت اختراع ResearchVault · پرونده‌های اختراع به‌صورت محرمانه و مستقل از سرویس مقاله مدیریت می‌شوند.</div><div class="patent-trust"><div class="patent-trust-title">نماد اعتماد الکترونیکی</div><div class="patent-trust-row"><div class="footer__enamad"><a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7889154&Code=3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' alt='نماد اعتماد الکترونیکی' style='cursor:pointer' code='3FW0b4FGTqsDvOI7aFqxxGhtlHiBLHtH' onerror="this.onerror=null;this.src='/assets/enamad-fallback.png';"></a></div></div></div></div></footer>`);
   }
-  async function init(){header();footer();const u=await me();if(u?.is_admin)document.body.classList.add('is-admin');window.Patent.user=u;$$('[data-auth-email]').forEach(x=>x.textContent=u?.email||'');$$('[data-account-link]').forEach(x=>x.textContent=u?(isEn?'My Account':'حساب من'):(isEn?'Sign in / Account':'ورود / حساب کاربری'));}
+  async function init(){if(!document.querySelector('body > .topbar'))header();ensureTrustStyles();if(!document.querySelector('body > .footer'))footer();const u=await me();if(u?.is_admin)document.body.classList.add('is-admin');window.Patent.user=u;$$('[data-auth-email]').forEach(x=>x.textContent=u?.email||'');$$('[data-account-link]').forEach(x=>x.textContent=u?(isEn?'My Account':'حساب من'):(isEn?'Sign in / Account':'ورود / حساب کاربری'));}
   async function requestOtp(destination,channel='email'){return api('/api/auth/request-otp',{method:'POST',body:{destination,channel}})}
   async function verifyOtp(challenge_id,code){return api('/api/auth/verify-otp',{method:'POST',body:{challenge_id,code}})}
   async function ensureLogin(email){let u=await me();if(u)return u;const req=await requestOtp(email,'email');const code=prompt(isEn?'Enter the one-time code sent to your email:':'کد یکبارمصرف ارسال‌شده به ایمیل را وارد کنید:');if(!code)throw new Error(isEn?'Login cancelled':'ورود لغو شد');await verifyOtp(req.challenge_id,code);return me()}
   window.Patent={API,$,$$,api,me,sha256,toast,requestOtp,verifyOtp,ensureLogin,user:null};
-  document.addEventListener('DOMContentLoaded',init);
+  if(document.body)init();else document.addEventListener('DOMContentLoaded',init,{once:true});
 })();
 
 // Additive, isolated service guide. It has no access to Patent auth or bot state.

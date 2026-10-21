@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("/assets/fonts/Vazirmatn-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 /* ============================================================
    ResearchVaultAgent — Dark Navy Theme
    Matches bot branding: deep navy + cyan glow
@@ -1092,6 +1100,15 @@ html[dir="ltr"] .plan-card--popular::before {
 }
 
 /* -------- Utility -------- */
+/* Keep navigation usable while JavaScript is unavailable or still arriving. */
+html:not([data-rva-ready]) .lang-toggle,
+html:not([data-rva-ready]) .mobile-toggle { display: none; }
+@media (max-width: 640px) {
+  html:not([data-rva-ready]) .header { height: auto; min-height: var(--header-h); }
+  html:not([data-rva-ready]) .header__inner { flex-wrap: wrap; gap: 12px; padding-block: 12px; }
+  html:not([data-rva-ready]) .nav { display: flex; flex-wrap: wrap; order: 3; width: 100%; }
+}
+
 .text-center { text-align: center; }
 .mt-4 { margin-top: 16px; }
 .mt-8 { margin-top: 32px; }

@@ -13,6 +13,15 @@ on:
       - terms.html
       - 404.html
       - assets/rv-support-*.js
+      - assets/fonts/**
+      - assets/zarinpal-trust.html
+      - css/style.css
+      - js/main.js
+      - scripts/render-static-pages.mjs
+      - patent/**/*.html
+      - patent/assets/patent.css
+      - patent/assets/portal.css
+      - patent/assets/iran-en.js
       - functions/support/**
       - wrangler.toml
       - patent/assets/patent.js
@@ -20,12 +29,14 @@ on:
       - deploy/patent-en/**
       - test/site-support.test.mjs
       - test/site-support.browser.mjs
+      - test/site-loading.browser.mjs
       - .github/workflows/site-support-checks.yml
 permissions:
   contents: read
 jobs:
   support:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -33,6 +44,11 @@ jobs:
           node-version: '24'
       - name: Check support routes and service facts
         run: node --test test/site-support.test.mjs
+      - name: Check initial HTML is current
+        run: |
+          if [ -f scripts/render-static-pages.mjs ]; then
+            node scripts/render-static-pages.mjs --check
+          fi
       - name: Check English build and portal isolation
         run: |
           if [ -f deploy/patent-en/build.mjs ]; then
@@ -50,3 +66,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify bilingual mobile and desktop interactions
         run: node test/site-support.browser.mjs
+      - name: Verify pages survive missing and delayed resources
+        run: |
+          if [ -f test/site-loading.browser.mjs ]; then
+            node test/site-loading.browser.mjs
+          fi

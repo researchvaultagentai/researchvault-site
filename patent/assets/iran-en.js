@@ -7,10 +7,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = link.getAttribute('href');
       if (target === '/patent/en/') {
         link.textContent = 'Patent Services';
-        const guide = document.createElement('a');
-        guide.href = '/patent/en/wizard.html';
-        guide.textContent = 'PCT Guide';
-        link.after(guide);
+        if (!navigation.querySelector('a[href="/patent/en/wizard.html"]')) {
+          const guide = document.createElement('a');
+          guide.href = '/patent/en/wizard.html';
+          guide.textContent = 'PCT Guide';
+          link.after(guide);
+        }
       } else if (target === '/patent/en/account/') {
         link.href = '/patent/account/';
       } else if (target === '/patent/en/account/?next=/patent/en/intake/') {
