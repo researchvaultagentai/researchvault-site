@@ -4,12 +4,43 @@ import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { createHash } from 'node:crypto';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const check = process.argv.includes('--check');
 const articles = ['index.html', 'about.html', 'contact.html', 'pricing.html', 'privacy.html', 'refund.html', 'terms.html', '404.html'];
 const revision = '20261021-loading';
 const escape = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+// Critical artwork travels in the initial document, so a stalled image request
+// cannot leave a broken hero. Encoding keeps the original art and dimensions.
+const manifest = JSON.parse(await readFile(resolve(root, 'assets/page-images/manifest.json'), 'utf8'));
+const pageImages = new Map();
+for (const entry of manifest.images) {
+  const source = await readFile(resolve(root, entry.source));
+  const bytes = await readFile(resolve(root, entry.file));
+  const sha256 = value => createHash('sha256').update(value).digest('hex');
+  if (sha256(source) !== entry.source_sha256 || sha256(bytes) !== entry.sha256 || bytes.length !== entry.bytes)
+    throw new Error(`Page image manifest is stale: ${entry.file}`);
+  if (bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WEBP' ||
+      bytes.readUInt32LE(4) + 8 !== bytes.length)
+    throw new Error(`Incomplete WebP asset: ${entry.file}`);
+  pageImages.set(entry.source, { ...entry, uri: `data:image/webp;base64,${bytes.toString('base64')}` });
+}
+
+function inlinePageImages(html) {
+  return html.replace(/<img\b[^>]*>/gi, tag => {
+    const marker = tag.match(/\bdata-rv-page-image="([^"]+)"/i);
+    const src = tag.match(/\bsrc="([^"]+)"/i);
+    const entry = pageImages.get((marker?.[1] || src?.[1] || '').replace(/^\//, ''));
+    if (!entry) return tag;
+    let result = tag.replace(/\bsrc="[^"]*"/i, `src="${entry.uri}"`);
+    if (!marker) result = result.replace('<img', `<img data-rv-page-image="${entry.source}"`);
+    for (const [key, value] of Object.entries({ width: entry.width, height: entry.height, decoding: 'async' }))
+      if (!new RegExp(`\\b${key}=`).test(result)) result = result.replace('<img', `<img ${key}="${value}"`);
+    return result;
+  });
+}
 
 function renderer(language = 'fa') {
   const output = { header: '', footer: '', styles: [] };
@@ -128,6 +159,7 @@ for (const file of [...articles, ...await htmlFiles('patent')]) {
     const tail = after.includes('data-cfasync=') ? after : after.replace('>', ' data-cfasync="false">');
     return `${before}${src.split('?')[0]}?v=${revision}${tail}`;
   });
+  html = inlinePageImages(html);
   if (html !== original) {
     outdated.push(file);
     if (!check) await writeFile(filename, html);

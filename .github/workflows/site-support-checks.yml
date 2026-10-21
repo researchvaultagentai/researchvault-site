@@ -14,10 +14,12 @@ on:
       - 404.html
       - assets/rv-support-*.js
       - assets/fonts/**
+      - assets/page-images/**
       - assets/zarinpal-trust.html
       - css/style.css
       - js/main.js
       - scripts/render-static-pages.mjs
+      - scripts/encode-page-images.cjs
       - patent/**/*.html
       - patent/assets/patent.css
       - patent/assets/portal.css
