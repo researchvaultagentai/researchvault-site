@@ -178,12 +178,20 @@ const I18N = {
 };
 
 // ==================== Language Management ====================
+let selectedLanguage;
 function getLang() {
-  return localStorage.getItem("rva-lang") || "fa";
+  if (selectedLanguage) return selectedLanguage;
+  try {
+    const saved = localStorage.getItem("rva-lang");
+    if (saved === "fa" || saved === "en") selectedLanguage = saved;
+  } catch { /* The page still works when browser storage is unavailable. */ }
+  return selectedLanguage ||= document.documentElement.lang === "en" ? "en" : "fa";
 }
 
 function setLang(lang) {
-  localStorage.setItem("rva-lang", lang);
+  if (lang !== "fa" && lang !== "en") return;
+  selectedLanguage = lang;
+  try { localStorage.setItem("rva-lang", lang); } catch { /* Keep the in-page selection. */ }
   applyLang();
 }
 
@@ -230,7 +238,9 @@ function applyLang() {
 
 // ==================== Header / Footer Injection ====================
 function injectHeader() {
+  if (document.getElementById("rva-site-header")) return;
   const header = document.createElement("header");
+  header.id = "rva-site-header";
   header.className = "header";
   header.innerHTML = `
     <div class="container header__inner">
@@ -266,7 +276,9 @@ function injectHeader() {
 }
 
 function injectFooter() {
+  if (document.getElementById("rva-site-footer")) return;
   const footer = document.createElement("footer");
+  footer.id = "rva-site-footer";
   footer.className = "footer";
   footer.innerHTML = `
     <div class="container">
@@ -330,8 +342,14 @@ function toggleMobileMenu() {
 }
 
 // ==================== Init ====================
-document.addEventListener("DOMContentLoaded", () => {
+function initSite() {
   injectHeader();
   injectFooter();
   applyLang();
-});
+  document.documentElement.dataset.rvaReady = "true";
+}
+
+// This script is placed after page content. Do not wait for unrelated remote
+// scripts (for example a trust badge) before making the site usable.
+if (document.body) initSite();
+else document.addEventListener("DOMContentLoaded", initSite, { once: true });

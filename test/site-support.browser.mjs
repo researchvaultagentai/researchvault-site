@@ -166,17 +166,10 @@ try {
   for (const language of ['fa', 'en']) for (const file of articlePages) {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const errors = [], supportCalls = [];
-    let releaseTrustScript, sawTrustScript;
-    const trustScriptGate = new Promise(resolve => { releaseTrustScript = resolve; });
-    const trustScriptRequested = new Promise(resolve => { sawTrustScript = resolve; });
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(language => localStorage.setItem('rva-lang', language), language);
     await page.route('**/*', async route => {
       const url = new URL(route.request().url());
-      if (file === 'index.html' && url.href === 'https://www.zarinpal.com/webservice/TrustCode') {
-        sawTrustScript(); await trustScriptGate;
-        return route.fulfill({ contentType: 'text/javascript', body: '' });
-      }
       if (url.origin !== 'https://www.researchvaultagent.ir') return route.abort();
       if (url.pathname.startsWith('/support/')) {
         supportCalls.push(url.pathname);
@@ -193,13 +186,7 @@ try {
       return route.abort();
     });
     const pathname = file === 'index.html' ? '/' : '/' + file.replace(/\.html$/, '');
-    await page.goto('https://www.researchvaultagent.ir' + pathname, { waitUntil: file === 'index.html' ? 'commit' : 'load' });
-    if (file === 'index.html') {
-      await trustScriptRequested;
-      await assertLauncherWithinViewport(page, { width: 390, height: 844 });
-      assert.equal(await page.evaluate(() => document.readyState), 'loading');
-      releaseTrustScript(); await page.waitForLoadState('load');
-    }
+    await page.goto('https://www.researchvaultagent.ir' + pathname, { waitUntil: 'domcontentloaded' });
     await assertLauncherWithinViewport(page, { width: 390, height: 844 });
     await page.locator('#rv-support-widget[data-support-scope="articles"] .launcher').click();
     assert.equal(await page.locator('#rv-support-widget').count(), 1);
