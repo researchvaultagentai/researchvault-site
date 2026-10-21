@@ -155,7 +155,12 @@ try {
       await assertArticleReadable(t.page, 'index.html');
       assert.equal(await t.page.locator('iframe[title="نماد درگاه زرین‌پال"]').getAttribute('loading'), 'lazy');
       await t.page.locator('iframe[title="نماد درگاه زرین‌پال"]').scrollIntoViewIfNeeded();
-      await requested; // Hold the real child request while using the parent page.
+      let badgeTimeout;
+      try {
+        await Promise.race([requested, new Promise((_, reject) => {
+          badgeTimeout = setTimeout(() => reject(new Error('The lazy trust frame did not request its vendor script')), 10_000);
+        })]);
+      } finally { clearTimeout(badgeTimeout); }
       assert.notEqual(await t.page.evaluate(() => document.readyState), 'loading');
       await t.page.locator('.lang-toggle').click();
       assert.equal(await t.page.locator('[data-i18n="hero.title1"]').innerText(), 'Easy access to');
