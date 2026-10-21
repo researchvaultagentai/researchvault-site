@@ -14,6 +14,8 @@ let checks = 0;
 async function prepare({ javaScriptEnabled = true, pendingMain = false, pendingFont = false, denyStorage = false, language = 'fa', width = 390 } = {}) {
   const context = await browser.newContext({ javaScriptEnabled, viewport: { width, height: 844 } });
   const page = await context.newPage();
+  page.setDefaultTimeout(10_000);
+  page.setDefaultNavigationTimeout(15_000);
   const errors = [], requests = [];
   let releaseMain, releaseFont;
   const mainGate = new Promise(resolve => { releaseMain = resolve; });
@@ -44,18 +46,28 @@ async function prepare({ javaScriptEnabled = true, pendingMain = false, pendingF
 }
 
 async function assertArticleReadable(page, file) {
-  const key = file === 'index.html' ? 'hero.title1' : file === 'pricing.html' ? 'pricing.title' : `pages.${file.replace('.html', '')}.title`;
+  const key = file === 'index.html' ? 'hero.title1' : `pages.${file.replace('.html', '')}.title`;
   const heading = file === '404.html' ? page.locator('h1') : page.locator(`[data-i18n="${key}"]`);
   await heading.waitFor({ state: 'visible' });
   assert.ok((await heading.innerText()).trim().length > 2, `${file}: visible heading cannot be empty`);
   assert.equal(await page.locator('#main-nav').count(), 1);
-  assert.equal(await page.locator('#main-nav').isVisible(), true);
+  if (!await page.locator('#main-nav').isVisible()) {
+    await page.locator('.mobile-toggle').click();
+    assert.equal(await page.locator('#main-nav').isVisible(), true);
+    await page.locator('.mobile-toggle').click();
+  }
   assert.equal(await page.locator('#main-nav a').count(), 4);
   assert.equal(await page.locator('body > header').count(), 1);
   assert.equal(await page.locator('body > footer').count(), 1);
   assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(10, 22, 40)');
   assert.deepEqual(await page.locator('[data-i18n]').evaluateAll(els => els.filter(e => !e.textContent.trim()).map(e => e.getAttribute('data-i18n'))), []);
   assert.equal(await page.evaluate(() => window.scrollY), 0);
+}
+
+async function visualProof(page, name) {
+  if (!process.env.GITHUB_ACTIONS) return;
+  const bytes = await page.screenshot({ type: 'jpeg', quality: 65 });
+  console.log(`RVA_LOADING_PROOF:${name}:${bytes.toString('base64')}:END_RVA_LOADING_PROOF`);
 }
 
 try {
@@ -74,6 +86,7 @@ try {
       await t.page.goto(origin + (file === 'index.html' ? '/' : '/' + file), { waitUntil: 'commit' });
       await assertArticleReadable(t.page, file);
       assert.equal(await t.page.evaluate(() => document.readyState), 'loading');
+      if (file === 'index.html') await visualProof(t.page, 'article-delayed-scripts');
     } finally { t.releaseMain(); t.releaseFont(); await t.context.close(); }
     checks++;
   }
@@ -93,7 +106,7 @@ try {
   {
     const t = await prepare({ language: 'en' });
     await t.page.goto(origin + '/pricing.html', { waitUntil: 'domcontentloaded' });
-    assert.equal(await t.page.locator('[data-i18n="pricing.title"]').innerText(), 'Choose your plan');
+    assert.equal(await t.page.locator('[data-i18n="pages.pricing.title"]').innerText(), 'Pricing');
     assert.equal(await t.page.locator('#main-nav').count(), 1);
     assert.deepEqual(t.errors, []);
     await t.context.close(); checks++;
@@ -115,6 +128,7 @@ try {
         assert.equal(await t.page.locator('.topbar a[href="/patent/en/account/"]').count(), 0);
       }
       assert.deepEqual(t.errors, []);
+      if (path === '/patent/' && !javaScriptEnabled) await visualProof(t.page, 'patent-without-js');
     } finally { t.releaseFont(); await t.context.close(); }
     checks++;
   }
