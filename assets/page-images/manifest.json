@@ -1,0 +1,34 @@
+{
+  "encoder": "sharp 0.35.5",
+  "quality": 82,
+  "effort": 6,
+  "images": [
+    {
+      "source": "assets/logo.png",
+      "source_sha256": "a4c4c058c702fc1cddb471d146db134f538c347effbb953934078ac68ebf369b",
+      "file": "assets/page-images/logo.webp",
+      "sha256": "a7b3f75427d43a639ad709213aa078f799b6cd6eea9fbb94fb08b84b49564dd5",
+      "width": 640,
+      "height": 640,
+      "bytes": 18986
+    },
+    {
+      "source": "assets/banner.png",
+      "source_sha256": "d1f5ba3321cc9bbe1815004fb8f239d74aea5cd0a7b22024b6099cacd4dbfa56",
+      "file": "assets/page-images/banner.webp",
+      "sha256": "fbc1d92d8977e7eac4f88d3ebc898c2ed7f091b134a146e97bc34dd339227bb8",
+      "width": 640,
+      "height": 360,
+      "bytes": 32340
+    },
+    {
+      "source": "assets/patent-hero-robot.png",
+      "source_sha256": "c29f65d39d7f671dcc48e00bf6e4b226c634803242791c59badf7f6fe9507cd8",
+      "file": "assets/page-images/patent-hero-robot.webp",
+      "sha256": "743bb5016224f9cb06c782015269d33bb204f37ac16ab110a9c89ff2a8e89eed",
+      "width": 1672,
+      "height": 941,
+      "bytes": 132754
+    }
+  ]
+}

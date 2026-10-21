@@ -11,7 +11,7 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const browser = await chromium.launch();
 let checks = 0;
 
-async function prepare({ javaScriptEnabled = true, pendingMain = false, pendingFont = false, denyStorage = false, language = 'fa', width = 390 } = {}) {
+async function prepare({ javaScriptEnabled = true, pendingMain = false, pendingFont = false, denyStorage = false, failImages = false, language = 'fa', width = 390 } = {}) {
   const context = await browser.newContext({ javaScriptEnabled, viewport: { width, height: 844 } });
   const page = await context.newPage();
   page.setDefaultTimeout(10_000);
@@ -28,6 +28,7 @@ async function prepare({ javaScriptEnabled = true, pendingMain = false, pendingF
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     requests.push(url);
+    if (failImages && route.request().resourceType() === 'image') return route.abort();
     if (url.origin !== origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/support/')) return route.abort();
     if (url.pathname.endsWith('.css')) return route.abort(); // HTML must carry its own layout.
     if (pendingMain && url.pathname === '/js/main.js') await mainGate;
@@ -71,6 +72,26 @@ async function visualProof(page, name) {
 }
 
 try {
+  // A failed image request is the reported production symptom. Critical art
+  // must actually decode with every network image blocked, even without JS.
+  for (const path of ['/', '/patent/', '/patent/en/']) for (const width of [390, 1440]) for (const javaScriptEnabled of [false, true]) {
+    const t = await prepare({ failImages: true, javaScriptEnabled, width });
+    await t.page.goto(origin + path, { waitUntil: 'domcontentloaded' });
+    const images = t.page.locator('[data-rv-page-image]');
+    assert.equal(await images.count(), path === '/' ? 2 : 1);
+    await images.evaluateAll(els => Promise.all(els.map(img => img.decode())));
+    assert.ok((await images.evaluateAll(els => els.map(img => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0))).every(Boolean));
+    assert.equal(t.requests.some(u => /\/(?:logo|banner|patent-hero-robot)\.(?:png|webp)$/.test(u.pathname)), false,
+      'Critical art cannot depend on a separate network request');
+    assert.equal(await t.page.locator('h1').isVisible(), true);
+    assert.ok(await t.page.locator('body').evaluate(e => e.scrollWidth <= innerWidth), 'Images cannot overflow the mobile viewport');
+    assert.deepEqual(t.errors, []);
+    await t.context.close(); checks++;
+  }
+  // Keep the self-contained HTML much smaller than the previous PNG payloads.
+  for (const file of ['index.html', 'patent/index.html', 'patent/en/index.html']) {
+    assert.ok((await readFile(resolve(root, file))).length < 210_000, `${file}: page payload exceeded 210 kB`);
+  }
   // All article pages remain complete with JavaScript and external CSS unavailable.
   for (const width of [390, 1440]) for (const file of articlePages) {
     const t = await prepare({ javaScriptEnabled: false, width });
