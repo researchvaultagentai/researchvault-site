@@ -125,8 +125,11 @@ try {
       assert.equal(await t.page.locator('body > .topbar').count(), 1);
       assert.equal(await t.page.locator('body > .footer').count(), 1);
       assert.equal(await t.page.locator('.topbar .nav').isVisible(), true);
-      const background = await t.page.locator('.btn-primary').first().evaluate(e => getComputedStyle(e).backgroundColor);
-      assert.notEqual(background, 'rgba(0, 0, 0, 0)');
+      const background = await t.page.locator('.btn-primary').first().evaluate(e => {
+        const s = getComputedStyle(e); return { color: s.backgroundColor, image: s.backgroundImage };
+      });
+      assert.ok(background.color !== 'rgba(0, 0, 0, 0)' || background.image !== 'none',
+        'The primary action must retain its styled color or gradient when external CSS fails');
       assert.equal(await t.page.evaluate(() => getComputedStyle(document.body).margin), '0px');
       if (path.includes('/en/')) {
         assert.equal(await t.page.locator('a[href="/patent/en/wizard.html"]').count(), 1);
