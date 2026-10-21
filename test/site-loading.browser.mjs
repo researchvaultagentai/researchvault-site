@@ -84,7 +84,12 @@ try {
     assert.equal(t.requests.some(u => /\/(?:logo|banner|patent-hero-robot)\.(?:png|webp)$/.test(u.pathname)), false,
       'Critical art cannot depend on a separate network request');
     assert.equal(await t.page.locator('h1').isVisible(), true);
-    assert.ok(await t.page.locator('body').evaluate(e => e.scrollWidth <= innerWidth), 'Images cannot overflow the mobile viewport');
+    const bounds = await images.evaluateAll(els => els.map(img => {
+      const rect = img.getBoundingClientRect();
+      return { image: img.dataset.rvPageImage, left: rect.left, right: rect.right, width: rect.width, viewport: innerWidth };
+    }));
+    assert.ok(bounds.every(rect => rect.width > 0 && rect.left >= -1 && rect.right <= rect.viewport + 1),
+      `${path} ${width}px JS=${javaScriptEnabled}: critical image must fit the viewport: ${JSON.stringify(bounds)}`);
     assert.deepEqual(t.errors, []);
     await t.context.close(); checks++;
   }
