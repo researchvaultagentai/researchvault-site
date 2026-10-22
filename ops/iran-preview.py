@@ -19,8 +19,10 @@ SOURCE = Path(__file__).resolve().parents[1]
 BASE = Path("/srv/researchvault-iran-preview")
 PUBLIC = BASE / "public"
 STATE = BASE / "protected-configs.json"
-CONF = Path("/etc/nginx/sites-available/researchvault-iran-preview")
-LINK = Path("/etc/nginx/sites-enabled/researchvault-iran-preview")
+# Nginx uses the first vhost as its implicit default. Load after existing sites,
+# otherwise an unknown Host used by an existing tunnel could change behavior.
+CONF = Path("/etc/nginx/sites-available/zz-researchvault-iran-preview")
+LINK = Path("/etc/nginx/sites-enabled/zz-researchvault-iran-preview")
 CERT = Path("/etc/letsencrypt/live/rv-iran-preview")
 MARKER = "# ResearchVault isolated Iran preview\n"
 EXTENSIONS = {".html", ".css", ".js", ".json", ".txt", ".xml", ".ico", ".svg",
@@ -152,6 +154,9 @@ def install(tls=False):
         raise RuntimeError("Unexpected existing preview symlink")
     if LINK.exists() and not LINK.is_symlink():
         raise RuntimeError("Unexpected existing preview file")
+    existing = [p.name for p in LINK.parent.iterdir() if p != LINK]
+    if any(name >= LINK.name for name in existing):
+        raise RuntimeError("Preview must load after existing vhosts to preserve their defaults")
     if BASE.exists() and not STATE.exists():
         raise RuntimeError("Refusing to reuse an unrecognized directory")
     if not BASE.exists():
@@ -193,6 +198,7 @@ def check():
         assert "window.PATENT_API_BASE || ''" in (dest / "patent/assets/patent.js").read_text()
         assert "https://" + HOST in (dest / "assets/rv-support-context.js").read_text()
         assert "default_server" not in config(True)
+        assert LINK.name > "zarinpal-proxy"
         assert "zarinpal" not in config(True)
         assert "proxy_ssl_verify on;" in config(True)
         print(json.dumps({"static_copy_check": "passed", "public_assets": count,
