@@ -16,11 +16,19 @@ PCT Pages project stays separate.
 - A separate Let's Encrypt certificate, `rv-iran-preview`, was issued using the
   existing account and webroot method. It expires on 2027-01-21.
 - The deployed source was verified as commit
-  `2cea6853ad9305f7662a07a29afe0d07033c2650`, with the same reviewed installer as
-  the pinned commit below. Public page source remains at baseline
+  `2cea6853ad9305f7662a07a29afe0d07033c2650`, with the initial reviewed installer.
+  Public page source remains at baseline
   `0dc29fc7f1beb6417eb0641b77df848f5a0c60bc`.
 - Website source on `main` and the existing payment/tunnel configuration have not
   been changed by this work.
+- VPS error-log inspection confirmed that the intermittent 5–10 second delays
+  came from timed-out connections to Cloudflare IPv6 upstream addresses. The
+  system resolver is `127.0.0.53`. Installer commit
+  `894941c1547dc3891701c440fea05f63c14338df` limits only this vhost's upstream
+  resolution to IPv4 using that existing resolver, preserving Host/SNI and TLS
+  verification. The correction is committed and passes the local check, but has
+  **not yet been applied to the VPS**: VNC expired before command execution and
+  Chrome then blocked automation because an extension UI was open.
 
 ## Safety boundaries
 
@@ -44,7 +52,7 @@ From an authenticated root SSH/PuTTY session on the intended existing VPS:
 
 ```sh
 git -c http.version=HTTP/1.1 clone -q -b ops/iran-preview https://github.com/researchvaultagentai/researchvault-site.git /srv/rv-iran-stage-src &&
-git -C /srv/rv-iran-stage-src checkout -q --detach f0eab65599d028ae790b0bfc23c5ae6587a608be &&
+git -C /srv/rv-iran-stage-src checkout -q --detach 894941c1547dc3891701c440fea05f63c14338df &&
 python3 /srv/rv-iran-stage-src/ops/iran-preview.py bootstrap
 ```
 
@@ -53,8 +61,8 @@ commit explicitly before checking it out. A shallow clone of the branch tip may
 not contain that older commit:
 
 ```sh
-git -C /srv/rv-iran-stage-src -c http.version=HTTP/1.1 fetch -q --depth 1 origin f0eab65599d028ae790b0bfc23c5ae6587a608be &&
-git -C /srv/rv-iran-stage-src checkout -q --detach f0eab65599d028ae790b0bfc23c5ae6587a608be &&
+git -C /srv/rv-iran-stage-src -c http.version=HTTP/1.1 fetch -q --depth 1 origin 894941c1547dc3891701c440fea05f63c14338df &&
+git -C /srv/rv-iran-stage-src checkout -q --detach 894941c1547dc3891701c440fea05f63c14338df &&
 python3 /srv/rv-iran-stage-src/ops/iran-preview.py bootstrap
 ```
 
@@ -78,13 +86,13 @@ Subsequent steps, after successful bootstrap output, are:
 
 - Preserve original client IP handling for API rate limits and signature evidence;
   current Workers see the VPS address when requests go through this preview.
-- Investigate intermittent upstream latency: repeated `/api/me` checks succeeded
+- Fix and re-test intermittent upstream latency: repeated `/api/me` checks succeeded
   everywhere but occasionally took approximately 5.4–5.7 seconds. Support config
   also had 5.5- and 10.3-second responses. Most of that time was before the first
-  response byte; a German control also had one slow API response. This suggests
-  checking VPS-to-Cloudflare connections/retries, but VPS logs are still needed
-  to establish the cause. Do not treat fast static pages as proof that portal
-  and support requests are fast.
+  response byte; a German control also had one slow API response. VPS logs then
+  identified IPv6 connection timeouts. Apply the pending IPv4-only upstream
+  correction and repeat these measurements. Do not treat fast static pages as
+  proof that portal and support requests are fast.
 - Prepare a dedicated Cloudflare support origin before changing production DNS.
   The preview currently forwards support requests to the unchanged production
   hostname; this must not become a loop after a cutover.
