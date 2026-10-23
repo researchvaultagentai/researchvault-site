@@ -14,17 +14,21 @@ import subprocess
 import sys
 import tempfile
 
-HOST = "iran-preview.researchvaultagent.ir"
+MODE = sys.argv[1] if len(sys.argv) == 2 else "check"
+LIVE = MODE.startswith("live")
+HOST = "www.researchvaultagent.ir" if LIVE else "iran-preview.researchvaultagent.ir"
+NAMES = HOST + (" researchvaultagent.ir" if LIVE else "")
 BASELINE = "0dc29fc7f1beb6417eb0641b77df848f5a0c60bc"
 SOURCE = Path(__file__).resolve().parents[1]
-BASE = Path("/srv/researchvault-iran-preview")
+BASE = Path("/srv/researchvault-iran-live" if LIVE else "/srv/researchvault-iran-preview")
 PUBLIC = BASE / "public"
 STATE = BASE / "protected-configs.json"
 # Nginx uses the first vhost as its implicit default. Load after existing sites,
 # otherwise an unknown Host used by an existing tunnel could change behavior.
-CONF = Path("/etc/nginx/sites-available/zz-researchvault-iran-preview")
-LINK = Path("/etc/nginx/sites-enabled/zz-researchvault-iran-preview")
-CERT = Path("/etc/letsencrypt/live/rv-iran-preview")
+SITE = "zzz-researchvault-iran-live" if LIVE else "zz-researchvault-iran-preview"
+CONF = Path("/etc/nginx/sites-available") / SITE
+LINK = Path("/etc/nginx/sites-enabled") / SITE
+CERT = Path("/etc/letsencrypt/live/rv-iran-live" if LIVE else "/etc/letsencrypt/live/rv-iran-preview")
 MARKER = "# ResearchVault isolated Iran preview\n"
 EXTENSIONS = {".html", ".css", ".js", ".json", ".txt", ".xml", ".ico", ".svg",
               ".png", ".jpg", ".jpeg", ".webp", ".avif", ".woff", ".woff2", ".ttf", ".pdf"}
@@ -78,10 +82,11 @@ def build_public(source, destination):
     old = "if (origin === 'https://researchvaultagent.ir' || origin === 'https://www.researchvaultagent.ir')"
     if text.count(old) != 1:
         raise RuntimeError("Unexpected support scope code; stop for review")
-    context.write_text(text.replace(old, "if (origin === 'https://" + HOST + "' || " + old[4:]))
-    (destination / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
+    if not LIVE:
+        context.write_text(text.replace(old, "if (origin === 'https://" + HOST + "' || " + old[4:]))
+        (destination / "robots.txt").write_text("User-agent: *\nDisallow: /\n")
     (destination / "assets/iran-preview-status.json").write_text(json.dumps({
-        "preview": True, "baseline": BASELINE, "frontend": "iran-vps", "production_dns_changed": False,
+        "preview": not LIVE, "baseline": BASELINE, "frontend": "iran-vps",
     }))
     assert not (destination / "patent-api").exists()
     assert not (destination / "functions").exists()
@@ -105,10 +110,10 @@ def ipv4_resolver():
 def config(tls=False):
     http = MARKER + f"""server {{
     listen 80;
-    server_name {HOST};
+    server_name {NAMES};
     root {PUBLIC};
     location ^~ /.well-known/acme-challenge/ {{ try_files $uri =404; }}
-    location / {{ {'return 301 https://$host$request_uri;' if tls else 'return 503;'} }}
+    location / {{ {'return 301 https://' + HOST + '$request_uri;' if tls else 'return 503;'} }}
 }}
 """
     if not tls:
@@ -125,6 +130,7 @@ def config(tls=False):
         proxy_ssl_verify_depth 5;
         proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
         proxy_set_header X-RV-Client-IP $remote_addr;
+        proxy_set_header X-RV-Public-Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto https;
@@ -132,7 +138,16 @@ def config(tls=False):
         proxy_read_timeout 60s;
         proxy_hide_header Alt-Svc;
 """
-    return http + f"""server {{
+    redirect = f"""server {{
+    listen 443 ssl;
+    server_name researchvaultagent.ir;
+    ssl_certificate {CERT}/fullchain.pem;
+    ssl_certificate_key {CERT}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    return 301 https://{HOST}$request_uri;
+}}
+""" if LIVE else ""
+    return http + redirect + f"""server {{
     listen 443 ssl;
     server_name {HOST};
     ssl_certificate {CERT}/fullchain.pem;
@@ -147,15 +162,14 @@ def config(tls=False):
     client_max_body_size 16m;
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy no-referrer-when-downgrade always;
-    add_header X-Robots-Tag "noindex, nofollow" always;
+    {'' if LIVE else 'add_header X-Robots-Tag "noindex, nofollow" always;'}
     add_header Cache-Control "no-cache" always;
-    access_log /var/log/nginx/researchvault-iran-preview.access.log;
-    error_log /var/log/nginx/researchvault-iran-preview.error.log;
+    access_log /var/log/nginx/{'researchvault-iran-live' if LIVE else 'researchvault-iran-preview'}.access.log;
+    error_log /var/log/nginx/{'researchvault-iran-live' if LIVE else 'researchvault-iran-preview'}.error.log;
     location ^~ /api/ {{
 {proxy('patent-api.researchvaultagent.ir')}    }}
     location ^~ /support/ {{
-{proxy('www.researchvaultagent.ir')}        proxy_set_header Origin https://www.researchvaultagent.ir;
-        proxy_set_header Sec-Fetch-Site same-origin;
+{proxy('cf-origin.researchvaultagent.ir')}
     }}
     location ~ /\\. {{ deny all; }}
     location / {{ try_files $uri $uri/ $uri.html =404; }}
@@ -204,6 +218,17 @@ def install(tls=False):
             LINK.unlink(missing_ok=True)
         raise
     guard()
+    if tls:
+        hook = Path('/etc/letsencrypt/renewal-hooks/deploy/researchvault-iran-reload')
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        marker = '# ResearchVault own-certificate reload hook\n'
+        if hook.exists() and marker not in hook.read_text():
+            raise RuntimeError('Unexpected renewal-hook file; stop for review')
+        hook.write_text('#!/bin/sh\n' + marker + 'case "$RENEWED_LINEAGE" in\n'
+                        '  /etc/letsencrypt/live/rv-iran-preview|/etc/letsencrypt/live/rv-iran-live)\n'
+                        '    /usr/sbin/nginx -t && /usr/sbin/nginx -s reload ;;\n'
+                        'esac\n')
+        hook.chmod(0o755)
     print(json.dumps({"host": HOST, "tls": tls, "public_assets": count,
                       "existing_configs_unchanged": True, "production_dns_changed": False}))
 
@@ -224,10 +249,10 @@ def check():
 
 
 if __name__ == "__main__":
-    mode = sys.argv[1] if len(sys.argv) == 2 else "check"
-    if mode == "check":
+    mode = MODE
+    if mode in ("check", "live-check"):
         check()
-    elif mode in ("bootstrap", "https"):
-        install(mode == "https")
+    elif mode in ("bootstrap", "https", "live-bootstrap", "live"):
+        install(mode in ("https", "live"))
     else:
         raise SystemExit("Modes: check | bootstrap | https")
