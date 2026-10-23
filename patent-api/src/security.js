@@ -13,7 +13,23 @@ export function sessionCookie(token,maxAge,secure=true){return `patent_session=$
 export function clearSessionCookie(secure=true){return `patent_session=; Path=/; HttpOnly; ${secure?'Secure; ':''}SameSite=Strict; Max-Age=0`}
 export function json(data,status=200,headers={}){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}})}
 export function error(message,status=400,code='bad_request'){return json({ok:false,error:code,message},status)}
-export function clientIp(req){return req.headers.get('cf-connecting-ip')||req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown'}
+export function clientIp(req){
+  const edge=req.headers.get('cf-connecting-ip')?.trim();
+  // Only the existing Iranian reverse proxy may assert the original address.
+  // nginx overwrites this header with $remote_addr for every forwarded request.
+  if(edge==='89.44.241.208'){
+    const address=req.headers.get('x-rv-client-ip')?.trim()||'';
+    if(address.length<=45&&/^[0-9a-f:.]+$/i.test(address)){
+      if(!address.includes(':')){
+        const parts=address.split('.');
+        if(parts.length===4&&parts.every(p=>/^(0|[1-9][0-9]{0,2})$/.test(p)&&Number(p)<=255))return address;
+      }else{
+        try{return new URL(`http://[${address}]/`).hostname.slice(1,-1)}catch{}
+      }
+    }
+  }
+  return edge||req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||'unknown';
+}
 export function allowedOrigin(req,env){const origin=req.headers.get('origin');if(!origin)return null;const allowed=String(env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim()).filter(Boolean);return allowed.includes(origin)?origin:null}
 export function corsHeaders(req,env){const origin=allowedOrigin(req,env);return origin?{'access-control-allow-origin':origin,'access-control-allow-credentials':'true','access-control-allow-methods':'GET,POST,PATCH,DELETE,OPTIONS','access-control-allow-headers':'content-type,x-admin-action,x-requested-with','vary':'Origin'}:{}}
 export function securityHeaders(extra={}){return{'x-content-type-options':'nosniff','referrer-policy':'no-referrer','permissions-policy':'camera=(), microphone=(), geolocation=()','x-frame-options':'DENY','cache-control':'no-store',...extra}}

@@ -30,6 +30,8 @@ on:
       - patent/en/index.html
       - deploy/patent-en/**
       - test/site-support.test.mjs
+      - test/iran-client-ip.test.mjs
+      - patent-api/src/security.js
       - test/site-support.browser.mjs
       - test/site-loading.browser.mjs
       - .github/workflows/site-support-checks.yml
@@ -45,7 +47,7 @@ jobs:
         with:
           node-version: '24'
       - name: Check support routes and service facts
-        run: node --test test/site-support.test.mjs
+        run: node --test test/site-support.test.mjs test/iran-client-ip.test.mjs
       - name: Check initial HTML is current
         run: |
           if [ -f scripts/render-static-pages.mjs ]; then
