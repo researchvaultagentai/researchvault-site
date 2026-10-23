@@ -170,3 +170,38 @@ test('Pages overwrites claimed scope and strips credentials before calling the W
     assert.equal(response.status, 200); assert.equal(called, true);
   }
 });
+
+test('the dedicated Cloudflare origin accepts only the known VPS and valid public hosts', async () => {
+  let calls=0;
+  const env={SUPPORT_SERVICE:{async fetch(req){
+    calls++;
+    assert.equal(req.headers.get('origin'),'https://www.researchvaultagent.ir');
+    assert.equal(req.headers.get('cf-connecting-ip'),'203.0.113.7');
+    assert.equal(req.headers.get('x-rv-support-scope'),'patent_iran');
+    assert.equal(req.headers.get('cookie'),null);
+    return Response.json({configured:true,turnstileSiteKey:key});
+  }}};
+  const base={'cf-connecting-ip':'89.44.241.208','x-rv-client-ip':'203.0.113.7','x-rv-public-host':'www.researchvaultagent.ir','x-rv-support-page':'/patent/en/'};
+  const url='https://cf-origin.researchvaultagent.ir/support/config';
+  for(const headers of [base,{...base,'x-rv-public-host':'iran-preview.researchvaultagent.ir'}]){
+    const response=await onRequest({request:new Request(url,{headers}),env});
+    assert.equal(response.status,200);assert.equal((await response.json()).configured,true);
+  }
+  for(const headers of [
+    {...base,'cf-connecting-ip':'198.51.100.2'},
+    {...base,'x-rv-public-host':'attacker.example'},
+    {...base,origin:'https://attacker.example'},
+    {...base,'sec-fetch-site':'cross-site'},
+  ])assert.equal((await onRequest({request:new Request(url,{headers}),env})).status,403);
+  assert.equal(calls,2);
+});
+
+test('the dedicated origin keeps chat origin and content-type protections', async()=>{
+  let calls=0;
+  const env={SUPPORT_SERVICE:{async fetch(){calls++;return Response.json({reply:'ok'})}}};
+  const headers={'cf-connecting-ip':'89.44.241.208','x-rv-public-host':'www.researchvaultagent.ir','content-type':'application/json'};
+  const url='https://cf-origin.researchvaultagent.ir/support/chat';
+  assert.equal((await onRequest({request:new Request(url,{method:'POST',headers,body:'{}'}),env})).status,403);
+  const response=await onRequest({request:new Request(url,{method:'POST',headers:{...headers,origin:'https://www.researchvaultagent.ir'},body:'{}'}),env});
+  assert.equal(response.status,200);assert.equal(calls,1);
+});
