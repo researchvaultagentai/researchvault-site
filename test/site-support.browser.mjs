@@ -163,8 +163,8 @@ try {
   }
   // Exercise the shipped HTML, not only the synthetic widget fixture above.
   // A missing entry script on an inner page must fail this navigation check.
-  for (const language of ['fa', 'en']) for (const file of articlePages) {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  for (const language of ['fa', 'en']) for (const file of articlePages) for (const width of (file === 'index.html' ? [320, 390] : [390])) {
+    const page = await browser.newPage({ viewport: { width, height: 844 }, isMobile: true, hasTouch: true });
     const errors = [], supportCalls = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(language => localStorage.setItem('rva-lang', language), language);
@@ -187,7 +187,20 @@ try {
     });
     const pathname = file === 'index.html' ? '/' : '/' + file.replace(/\.html$/, '');
     await page.goto('https://www.researchvaultagent.ir' + pathname, { waitUntil: 'domcontentloaded' });
-    await assertLauncherWithinViewport(page, { width: 390, height: 844 });
+    await assertLauncherWithinViewport(page, { width, height: 844 });
+    const layout = await page.evaluate(() => ({ width: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth, visualWidth: visualViewport.width }));
+    assert.ok(layout.scrollWidth <= layout.width + 1 && layout.visualWidth <= width + 1,
+      `Mobile ${language} ${pathname} must not widen the visual viewport: ${JSON.stringify(layout)}`);
+    if (file === 'index.html') {
+      const bounds = await page.locator('.header__actions, .trust__item, .trust__num').evaluateAll(elements =>
+        elements.map(element => ({ left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right })));
+      assert.ok(bounds.every(box => box.left >= -1 && box.right <= width + 1),
+        `Mobile ${language} ${width}px header and statistics must fit: ${JSON.stringify(bounds)}`);
+      await page.locator('.mobile-toggle').click();
+      assert.equal(await page.locator('#main-nav').isVisible(), true);
+      await page.locator('.mobile-toggle').click();
+    }
     await page.locator('#rv-support-widget[data-support-scope="articles"] .launcher').click();
     assert.equal(await page.locator('#rv-support-widget').count(), 1);
     assert.equal(await page.locator('#rv-support-widget').getAttribute('dir'), language === 'fa' ? 'rtl' : 'ltr');

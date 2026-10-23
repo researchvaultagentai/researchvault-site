@@ -169,6 +169,7 @@
 }
 
 html {
+  overflow-x: clip;
   font-family: var(--font);
   font-size: 16px;
   line-height: 1.7;
@@ -1172,12 +1173,17 @@ html[dir="ltr"] .plan-card--popular::before {
 }
 
 @media (max-width: 640px) {
+  .header { height: auto; min-height: var(--header-h); }
+  .header__inner { flex-wrap: wrap; gap: 12px; padding-block: 10px; }
+  .header__actions { flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 100%; }
+  .header__actions > * { flex-shrink: 0; }
+  .header__actions .btn { width: auto; }
   .nav { display: none; }
   .nav--open {
     display: flex;
     flex-direction: column;
     position: absolute;
-    top: var(--header-h);
+    top: 100%;
     inset-inline: 0;
     background: var(--bg-alt);
     padding: 16px;
@@ -1192,7 +1198,9 @@ html[dir="ltr"] .plan-card--popular::before {
   .features__grid { grid-template-columns: 1fr; }
   .pricing-preview { grid-template-columns: 1fr; }
   .footer__grid { grid-template-columns: 1fr; }
-  .trust { grid-template-columns: 1fr 1fr; }
+  .trust { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trust__item { min-width: 0; padding: 20px 12px; }
+  .trust__num { font-size: clamp(1.5rem, 7vw, 2rem); overflow-wrap: anywhere; }
   .cta-banner { padding: 40px 24px; }
   .btn--lg { width: 100%; }
 }
