@@ -5,6 +5,7 @@ bootstrap: publish a separate HTTP ACME vhost; https: enable its new certificate
 No package installation, service restart, payment/tunnel edit, or live cutover.
 """
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -88,6 +89,19 @@ def build_public(source, destination):
     return len(candidates)
 
 
+def ipv4_resolver():
+    for line in Path('/etc/resolv.conf').read_text().splitlines():
+        fields = line.split()
+        if len(fields) >= 2 and fields[0] == 'nameserver':
+            try:
+                value = ipaddress.ip_address(fields[1])
+            except ValueError:
+                continue
+            if value.version == 4:
+                return str(value)
+    raise RuntimeError('No existing IPv4 DNS resolver; stop for review')
+
+
 def config(tls=False):
     http = MARKER + f"""server {{
     listen 80;
@@ -101,7 +115,8 @@ def config(tls=False):
         return http
     def proxy(name):
         return f"""        proxy_http_version 1.1;
-        proxy_pass https://{name};
+        set $rv_upstream {name};
+        proxy_pass https://$rv_upstream$request_uri;
         proxy_set_header Host {name};
         proxy_set_header Connection "";
         proxy_ssl_server_name on;
@@ -123,6 +138,9 @@ def config(tls=False):
     ssl_certificate {CERT}/fullchain.pem;
     ssl_certificate_key {CERT}/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
+    # This VPS has no working outbound IPv6. Resolve these upstreams to A only.
+    resolver {ipv4_resolver()} ipv6=off valid=300s;
+    resolver_timeout 3s;
     root {PUBLIC};
     index index.html;
     autoindex off;
