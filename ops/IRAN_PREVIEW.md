@@ -6,9 +6,19 @@ PCT Pages project stays separate.
 
 ## Current state
 
-- The preview installer is prepared; production DNS has not been changed.
-- The installer has **not yet been executed on the VPS**.
-- No preview DNS record or certificate has been created.
+- The isolated preview is live at <https://iran-preview.researchvaultagent.ir/>.
+  `/`, `/patent/`, and `/patent/en/` are served by the existing Iran VPS.
+- Bootstrap and HTTPS installation succeeded on 2026-10-23. Both runs reported
+  `existing_configs_unchanged: true`; nginx syntax validation and graceful reload
+  succeeded.
+- Only the new preview hostname has a DNS-only A record pointing to
+  `89.44.241.208`. The production apex and `www` remain proxied to Cloudflare Pages.
+- A separate Let's Encrypt certificate, `rv-iran-preview`, was issued using the
+  existing account and webroot method. It expires on 2027-01-21.
+- The deployed source was verified as commit
+  `2cea6853ad9305f7662a07a29afe0d07033c2650`, with the same reviewed installer as
+  the pinned commit below. Public page source remains at baseline
+  `0dc29fc7f1beb6417eb0641b77df848f5a0c60bc`.
 - Website source on `main` and the existing payment/tunnel configuration have not
   been changed by this work.
 
@@ -68,6 +78,13 @@ Subsequent steps, after successful bootstrap output, are:
 
 - Preserve original client IP handling for API rate limits and signature evidence;
   current Workers see the VPS address when requests go through this preview.
+- Investigate intermittent upstream latency: repeated `/api/me` checks succeeded
+  everywhere but occasionally took approximately 5.4–5.7 seconds. Support config
+  also had 5.5- and 10.3-second responses. Most of that time was before the first
+  response byte; a German control also had one slow API response. This suggests
+  checking VPS-to-Cloudflare connections/retries, but VPS logs are still needed
+  to establish the cause. Do not treat fast static pages as proof that portal
+  and support requests are fast.
 - Prepare a dedicated Cloudflare support origin before changing production DNS.
   The preview currently forwards support requests to the unchanged production
   hostname; this must not become a loop after a cutover.
@@ -75,6 +92,8 @@ Subsequent steps, after successful bootstrap output, are:
   preview does not claim to validate support chat or alter Turnstile settings.
 - Obtain valid certificates for the real hostnames and test their routing before
   pointing production DNS at the VPS.
+- Verify a renewal reload hook for the new certificate; a webroot renewal alone
+  does not prove that nginx will start serving the renewed certificate.
 - Keep both frontend copies tied to the same reviewed GitHub release. An
   automatic GitHub-to-VPS update pipeline has not yet been configured.
 - Retaining a Cloudflare copy does not implement automatic failover. The business
@@ -88,6 +107,53 @@ Subsequent steps, after successful bootstrap output, are:
 - Generated patent client and support context JavaScript parse successfully.
 - Preview vhost preserves existing vhost ordering and enables upstream TLS
   certificate verification.
+- Actual VPS bootstrap and HTTPS configuration passed, with existing nginx,
+  cloudflared, and systemd configuration hashes unchanged.
+- All three pages rendered in Chrome. Main illustrations were visible. This did
+  not validate an authenticated portal session or support chat.
+- Remote bytes for the three HTML pages, patent client, support context, and
+  local Vazirmatn font matched the build produced from the GitHub source.
+- Anonymous `/api/me` returned `200` with `user: null`; `/api/cases` returned
+  `401 unauthorized`. Support configuration, font, and patent JavaScript returned
+  `200`. Support-chat/Turnstile completion has not been tested.
 
-Actual VPS nginx syntax, certificate issuance, browser flows, and full Iranian
-page load tests remain pending server access and deployment.
+Distributed HTTPS checks on 2026-10-23 used the same Globalping probes for the
+preview and production comparisons. The following are **individual HTTP request
+totals in milliseconds**, including DNS and TLS, rather than browser page-load
+times. Every preview response below was HTTP 200 with a verified certificate.
+
+| Request | Sefroyek AS48715 | TCI AS58224 | Hostiran AS59441 |
+| --- | ---: | ---: | ---: |
+| Preview `/` | 27 | 115 | 18 |
+| Preview `/patent/` (first lookup) | 514 | 544 | 110 |
+| Preview `/patent/en/` | 22 | 108 | 14 |
+| Preview local font | 370 | 130 | 374 |
+| Preview `/api/me` (first pass) | 377 | 5662 | 5578 |
+| Preview `/api/me` (second pass) | 280 | 5435 | 291 |
+| Preview `/api/me` (third pass) | 289 | 391 | 270 |
+| Preview `/support/config` | 10329 | 5452 | 463 |
+| Production `/patent/`, HTTP/1.1 | 387 | 435 | 374 |
+
+For production `/patent/` over HTTP/2, Sefroyek timed out at 15 seconds, TCI
+returned 200 in 438 ms, and Hostiran reported a private-address DNS result and
+could not run the request. The separate HTTP/1.1 comparison succeeded from all
+three. This reproduces a protocol/path-dependent problem but does not establish
+which operator causes it. Two German control probes also completed the preview
+checks successfully. The requested fourth Iranian ASN had no selected probe and
+must not be counted as an Iranian success.
+
+Measurement IDs (public GET endpoint: `https://api.globalping.io/v1/measurements/{id}`):
+
+- Preview patent: `2aEISwwjwYTfywAnJ00021Mr6`
+- Preview homepage: `258aw4QQLP3QwHExm00021Mr8`
+- Preview English: `2bm41BRnLaqziRTTN00021Mr8`
+- Preview API: `2Ja4lJ40aGgJyKPUU00021Mr8`
+- Preview font: `2MhQcqalHnlr3rYmB00021Mr8`
+- Preview API second pass: `20rRpPSU1CwNYIUdb00021MrA`
+- Preview API third pass: `2KuF7mkpCfLgkmG9A00021MrA`
+- Preview support config: `2tYN8hA5I50Sb2OcU00021MrA`
+- Production HTTP/2: `2QnIle24xOHnICHfn00021Mr8`
+- Production HTTP/1.1: `2aS4kEw6uynkYxmtb00021Mr8`
+
+Production cutover, authenticated browser flows, support chat, API latency
+investigation, and repeated real-user page-load checks remain pending.
