@@ -1,4 +1,5 @@
 import { supportScopeForPage } from '../../assets/rv-support-context.js';
+import { clientIp } from '../../patent-api/src/security.js';
 
 const ORIGINS = new Set([
   'https://researchvaultagent.ir',
@@ -18,18 +19,26 @@ function failure(status) {
 }
 export async function onRequest({ request, env }) {
   const url = new URL(request.url);
-  if (!ORIGINS.has(url.origin)) return failure(403);
+  let publicOrigin = url.origin;
+  let serviceOrigin = url.origin;
+  if (url.origin === 'https://cf-origin.researchvaultagent.ir') {
+    if (request.headers.get('cf-connecting-ip') !== '89.44.241.208') return failure(403);
+    const publicHost = request.headers.get('x-rv-public-host');
+    if (!['researchvaultagent.ir', 'www.researchvaultagent.ir', 'iran-preview.researchvaultagent.ir'].includes(publicHost)) return failure(403);
+    publicOrigin = 'https://' + publicHost;
+    serviceOrigin = 'https://www.researchvaultagent.ir';
+  } else if (!ORIGINS.has(url.origin)) return failure(403);
   if (!['/support/config', '/support/chat'].includes(url.pathname)) return failure(404);
   const origin = request.headers.get('origin');
   const fetchSite = request.headers.get('sec-fetch-site');
-  if ((origin && origin !== url.origin) || (fetchSite && !['same-origin', 'none'].includes(fetchSite))) return failure(403);
+  if ((origin && origin !== publicOrigin) || (fetchSite && !['same-origin', 'none'].includes(fetchSite))) return failure(403);
   const configuration = url.pathname === '/support/config';
   if (request.method !== (configuration ? 'GET' : 'POST')) return failure(405);
-  if (!configuration && origin !== url.origin) return failure(403);
+  if (!configuration && origin !== publicOrigin) return failure(403);
   if (!configuration && !/^application\/json(?:\s*;|$)/i.test(request.headers.get('content-type') || '')) return failure(415);
   if (!configuration && Number(request.headers.get('content-length') || 0) > 16384) return failure(413);
   const page = request.headers.get('x-rv-support-page') || '/';
-  const scope = supportScopeForPage(url.origin, page);
+  const scope = supportScopeForPage(serviceOrigin, page);
   if (!scope) return failure(400);
   if (typeof env.SUPPORT_SERVICE?.fetch !== 'function') {
     return configuration
@@ -39,12 +48,12 @@ export async function onRequest({ request, env }) {
   try {
     const forward = new Request('https://support.internal/v1/' + (configuration ? 'config' : 'chat'), request);
     for (const name of [...forward.headers.keys()]) forward.headers.delete(name);
-    forward.headers.set('origin', url.origin);
+    forward.headers.set('origin', serviceOrigin);
     forward.headers.set('x-rv-support-page', page);
     forward.headers.set('x-rv-support-scope', scope);
     if (!configuration) forward.headers.set('content-type', 'application/json');
-    const ip = request.headers.get('cf-connecting-ip');
-    if (ip) forward.headers.set('cf-connecting-ip', ip);
+    const ip = clientIp(request);
+    if (ip !== 'unknown') forward.headers.set('cf-connecting-ip', ip);
     const upstream = await env.SUPPORT_SERVICE.fetch(forward);
     if (configuration) {
       if (!upstream.ok) return unavailable(upstream.status === 403 ? 'support_origin_rejected'
