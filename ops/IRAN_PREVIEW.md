@@ -33,7 +33,17 @@ preview hostname for Iranian support scope.
 From an authenticated root SSH/PuTTY session on the intended existing VPS:
 
 ```sh
-git -c http.version=HTTP/1.1 clone -q --depth 1 -b ops/iran-preview https://github.com/researchvaultagentai/researchvault-site.git /srv/rv-iran-stage-src &&
+git -c http.version=HTTP/1.1 clone -q -b ops/iran-preview https://github.com/researchvaultagentai/researchvault-site.git /srv/rv-iran-stage-src &&
+git -C /srv/rv-iran-stage-src checkout -q --detach f0eab65599d028ae790b0bfc23c5ae6587a608be &&
+python3 /srv/rv-iran-stage-src/ops/iran-preview.py bootstrap
+```
+
+If the repository was already cloned with `--depth 1`, fetch the pinned installer
+commit explicitly before checking it out. A shallow clone of the branch tip may
+not contain that older commit:
+
+```sh
+git -C /srv/rv-iran-stage-src -c http.version=HTTP/1.1 fetch -q --depth 1 origin f0eab65599d028ae790b0bfc23c5ae6587a608be &&
 git -C /srv/rv-iran-stage-src checkout -q --detach f0eab65599d028ae790b0bfc23c5ae6587a608be &&
 python3 /srv/rv-iran-stage-src/ops/iran-preview.py bootstrap
 ```
