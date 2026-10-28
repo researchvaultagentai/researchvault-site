@@ -1,6 +1,7 @@
 import { D1WorkStore } from '../../src/d1-store.js';
 import { identifier, requireValue, sha256 } from '../../src/contracts.js';
 import { STAGES } from '../../src/workflow.js';
+import { readPatentOverview } from './overview.js';
 
 function storeFor(env) {
   requireValue(env.PATENT_DB?.prepare, 'patent_database_required');
@@ -129,18 +130,8 @@ export function createPatentAdminControl(env) {
 export function createPatentQueueView(env) {
   return {
     async queue(input) {
-      const result = await createPatentAdminControl(env).queue(input);
-      return {
-        cases: result.cases.map(item => ({
-          case_id: item.case_id,
-          report_language: item.report_language,
-          input_revision: item.input_revision,
-          state_version: item.state_version,
-          phase: item.phase,
-          stage: item.stage,
-        })),
-        next_after_case_id: result.next_after_case_id,
-      };
+      adminActor(env, input?.adminId);
+      return readPatentOverview(env.PATENT_DB, input);
     },
   };
 }

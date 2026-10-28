@@ -7,8 +7,15 @@ migrations, authenticated service calls or customer-facing integrations work.
 Keep delivery disabled during setup. Verify schema and authenticated runtime
 calls separately before enabling any case processing or notifications.
 
-`PatentQueueView` is a separate read-only RPC role for the Telegram queue viewer.
-It returns case identifiers, language, revision and workflow status. It cannot
+`PatentQueueView` is a separate read-only RPC role for the Telegram case overview.
+It lists all portal cases, including draft/onboarding, suspended and closed cases,
+alongside bridge-only records. The portal stage and processing phase are separate.
+It returns bounded case identifiers, public references, titles, recorded report
+language/revision, timestamps and a next-action code. Missing processing records
+are explicitly labelled; listing a case never submits it or initializes a run.
+Pagination has a total count and does not hide unsubmitted/finalized cases. The
+actionable `PatentAdminControl.queue` remains submitted-only and unchanged.
+The inventory uses SELECTs only and needs no schema migration. It cannot
 approve stages, trigger execution or retrieve documents, hashes or passwords.
 Provide `PATENT_ADMIN_IDS` as an operator-managed secret; no identifier is baked
 into source or overwritten by a plaintext `vars` default. Missing configuration
