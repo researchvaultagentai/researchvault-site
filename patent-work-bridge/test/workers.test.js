@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { D1WorkStore } from '../src/d1-store.js';
 import { createPatentOrchestrator, createPatentClientControl, createPatentAdminControl, createPatentQueueView } from '../workers/orchestrator/service.js';
 import { createPatentWorkService } from '../workers/work/service.js';
@@ -11,6 +12,7 @@ import { intake, HASH } from './fixtures.js';
 
 async function fixture(t, extra = {}) {
   const db = sqliteD1(); t.after(() => db.raw.close());
+  db.raw.exec(readFileSync(new URL('../../patent-api/migrations/0001_init.sql', import.meta.url), 'utf8'));
   const env = { PATENT_DB: db, PATENT_WORK: createPatentWorkService(),
     PATENT_NOTIFY: createPatentNotificationService({}), PATENT_ADMIN_IDS: 'admin_1',
     PATENT_OUTBOX_ENABLED: 'true', ...extra };
@@ -69,8 +71,11 @@ test('read-only queue role exposes bounded status metadata without mutating case
   const before = await store.read('case_1');
   const events = await store.pending();
   const result = await view.queue({ adminId: 'admin_1', limit: 10 });
-  assert.deepEqual(result.cases, [{ case_id: 'case_1', report_language: 'en', input_revision: 1,
-    state_version: 2, phase: 'awaiting_admin', stage: null }]);
+  assert.deepEqual(result.cases, [{ case_id: 'case_1', public_ref: null, title: null, case_stage: null,
+    report_language: 'en', input_revision: 1, state_version: 2, phase: 'awaiting_admin', stage: null,
+    next_action: 'admin_review', updated_at: result.cases[0].updated_at }]);
+  assert.equal(result.total_cases, 1);
+  assert.equal(result.scope, 'all_cases');
   assert.equal(result.next_after_case_id, null);
   assert.deepEqual(await store.read('case_1'), before);
   assert.deepEqual(await store.pending(), events);
