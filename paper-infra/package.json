@@ -31,7 +31,8 @@
     "test:stage2": "node --test stage2/test/*.test.js",
     "check:stage2": "node scripts/stage2.mjs validate && npm run test:stage2 && node scripts/stage2.mjs bundle",
     "deploy:stage2": "npm run check:stage2 && node scripts/stage2.mjs deploy",
-    "smoke:stage2": "node scripts/smoke-stage2.mjs"
+    "smoke:stage2": "node scripts/smoke-stage2.mjs",
+    "deploy:stage2:workers": "npm run check:stage2 && node scripts/stage2.mjs deploy-workers"
   },
   "devDependencies": {
     "wrangler": "4.147.0",

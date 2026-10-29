@@ -28,17 +28,17 @@ function run(args) {
   if (result.status !== 0) process.exit(result.status || 1);
 }
 const mode = process.argv[2] || 'validate';
-if (!['validate', 'bundle', 'deploy'].includes(mode)) throw Error('Use validate, bundle, or deploy');
+if (!['validate', 'bundle', 'deploy', 'deploy-workers'].includes(mode)) throw Error('Use validate, bundle, deploy, or deploy-workers');
 if (mode === 'validate') { console.log('Stage 2 configuration and additive schema checks passed.'); process.exit(); }
 const wrangler = 'node_modules/wrangler/bin/wrangler.js';
+if (mode === 'deploy' || mode === 'deploy-workers') run([wrangler, 'whoami']);
 if (mode === 'deploy') {
   // Existing signed-in operator account only. Never create a temporary account.
-  run([wrangler, 'whoami']);
   run([wrangler, 'd1', 'execute', 'PAPER_DB', '--remote', '--config', 'stage2/wrangler.doi-resolver.jsonc',
     '--file', 'migrations/stage2/0001_paper_pipeline.sql']);
 }
 for (const filename of configs) run([wrangler, 'deploy', '--config', filename,
   ...(mode === 'bundle' ? ['--dry-run', '--outdir', `.wrangler/stage2/${filename.split('/').pop()}`] : [])]);
-console.log(mode === 'deploy'
+console.log(mode.startsWith('deploy')
   ? 'Nine private Workers deployed. Bot rollout was not changed. Complete remote verification before enabling a cohort.'
   : 'All nine Stage 2 Worker bundles compiled without deployment.');

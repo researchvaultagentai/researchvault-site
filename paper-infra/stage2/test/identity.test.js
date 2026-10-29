@@ -53,3 +53,20 @@ test('short generic titles require DOI, author and year together', () => {
   const result = assessIdentity(target, { firstPageText: `${target.title}\nB Jones\n2026\n${target.doi}\nAbstract:\nOther details.` });
   assert.notEqual(result.verdict, 'verified');
 });
+
+test('column-order page-one metadata beyond the early window needs exact DOI, title, author and year', () => {
+  const lead = 'Column body text about an unrelated statistical method. '.repeat(90);
+  const front = lead + '\n' + metadata.title + '\nA Smith\n2026\n' + metadata.doi;
+  const result = assessIdentity(metadata, { firstPageText: front });
+  assert.equal(result.verdict, 'verified'); assert.equal(result.reason, 'leading_page_doi_title_author_year');
+  for (const altered of [front.replace('A Smith','B Jones'), front.replace('2026','2010'), front.replace(metadata.doi,'10.9999/other')]) {
+    assert.notEqual(assessIdentity(metadata,{ firstPageText: altered }).verdict,'verified');
+  }
+  assert.notEqual(assessIdentity(metadata, { firstPageText: 'Another paper\n10.9999/other\n' + front }).verdict, 'verified');
+});
+test('numbered reference or introduction headings cannot expose a later citation as article identity', () => {
+  for (const heading of ['2. References', '1 Introduction', 'Bibliography']) {
+    const text = 'An unrelated article\nB Jones\n' + heading + '\n' + 'Body text '.repeat(500) + metadata.title + '\nA Smith 2026\n' + metadata.doi;
+    assert.notEqual(assessIdentity(metadata, { firstPageText: text }).verdict, 'verified');
+  }
+});

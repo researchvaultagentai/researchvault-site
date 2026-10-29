@@ -18,7 +18,7 @@ test('tail subprocess uses argument arrays and closes the temporary trace', asyn
   const reports = [], child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough();
   let killed = false; child.kill = () => { killed = true; child.emit('close', 0); };
   const trace = await startSmokeTail(value => reports.push(value), (_, args, options) => {
-    assert.ok(args.includes('rv-pdf-finder')); assert.equal(options.shell, undefined); assert.equal(options.windowsHide, true);
+    assert.ok(args.includes('rv-pdf-finder')); assert.equal(args.includes('--sampling-rate'), false); assert.equal(options.shell, undefined); assert.equal(options.windowsHide, true);
     queueMicrotask(() => child.stdout.write('Connected to rv-pdf-finder, waiting for logs...\n'));
     return child;
   });

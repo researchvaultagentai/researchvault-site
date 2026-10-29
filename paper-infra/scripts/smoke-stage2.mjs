@@ -137,7 +137,7 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
       && await proofMatches(result.bytes, result.record?.proof, doi);
     report({ check: 'real_article', doi, ok: Boolean(valid), elapsed_ms: Date.now() - started,
       status: result.record ? 'pdf' : result.data?.status || 'error', source: result.record?.candidate?.source,
-      reason: result.record?.proof?.reason || result.data?.error, usage: result.record?.usage || result.data?.usage });
+      reason: result.record?.proof?.reason || result.data?.error, usage: result.record?.usage || result.data?.usage, diagnostics: result.data?.diagnostics });
     if (valid) found++;
   }
   if (found !== dois.length) throw Error('real_article_smoke_incomplete');

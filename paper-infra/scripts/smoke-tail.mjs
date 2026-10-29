@@ -40,7 +40,7 @@ export async function startSmokeTail(report, spawnProcess = spawn) {
   const connected = new Promise(resolve => { resolveReady = resolve; });
   try {
     child = spawnProcess(process.execPath, ['node_modules/wrangler/bin/wrangler.js', 'tail', 'rv-pdf-finder',
-      '--config', 'stage2/wrangler.pdf-finder.jsonc', '--format', 'json', '--sampling-rate', '1'], {
+      '--config', 'stage2/wrangler.pdf-finder.jsonc', '--format', 'json'], {
       cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, WRANGLER_SEND_METRICS: 'false', CLOUDFLARE_ACCOUNT_ID: '36c3a32f4feac9d764c4f82b66c3a9d5' },
     });

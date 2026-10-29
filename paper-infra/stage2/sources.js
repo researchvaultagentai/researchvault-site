@@ -50,7 +50,20 @@ export function landingCandidates(html, url, metadata) {
   }));
 }
 
+export function publisherDirectCandidates(metadata) {
+  const match = /^10\.1371\/journal\.(pmed|pone|pbio|pgen|pcbi|ppat|pntd)\.\d+$/i.exec(metadata.doi);
+  if (!match) return [];
+  const journal = { pmed: 'plosmedicine', pone: 'plosone', pbio: 'plosbiology', pgen: 'plosgenetics',
+    pcbi: 'ploscompbiol', ppat: 'plospathogens', pntd: 'plosntds' }[match[1].toLowerCase()];
+  const url = new URL(`https://journals.plos.org/${journal}/article/file`);
+  url.search = new URLSearchParams({ id: metadata.doi, type: 'printable' });
+  return valid([candidate(url.toString(), 'plos-publisher', { version: 'publishedVersion', priority: 96 })]);
+}
+
 async function publisher(metadata, budget) {
+  // DOI-addressed publisher PDFs avoid spending a source's entire budget on resolver redirects.
+  const known = publisherDirectCandidates(metadata);
+  if (known.length) return known;
   const direct = valid((metadata.links || []).filter(link => /pdf/i.test(link.type))
     .map(link => candidate(link.url, 'crossref-publisher-link', { priority: 82 })));
   // Do not discard alternate publisher locations merely because metadata has one link.

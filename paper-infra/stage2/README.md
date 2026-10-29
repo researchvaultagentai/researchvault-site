@@ -88,3 +88,19 @@ Live health probes retry transient connection/HTTP failures at most three times 
 The operator smoke now first sends two tiny deliberately invalid PDF inputs (a JSON string body and a binary body) to the private verifier. Each must return its normal format rejection without invoking conversion. These distinguish upload transport from the subsequent valid-PDF conversion check. All known bodies are snapshotted with exact byte lengths; timeout diagnostics identify waiting-for-headers versus reading-response-body.
 
 During this operator check only, a temporary `wrangler tail rv-pdf-finder --format json` subprocess uses the existing login to report execution outcome, method, status and sanitized exception messages. It never prints raw request headers/URLs or stack traces, and is stopped when the check ends. A missing trace is reported separately and never counts as successful PDF verification. No production code, deployment or schema change is needed for these diagnostics.
+
+## Publisher redirect and column-order correction
+
+The two default PLOS DOI URLs currently use three redirects before the article page (four fetches), exceeding a source's three-request allowance. Recognized legacy PLOS journal DOI prefixes now produce the publisher's HTTPS printable-PDF candidate directly, spending zero discovery requests; byte-level verification remains mandatory. The matching DOI/title is never inferred from that URL.
+
+Some old multi-column PDFs serialize title/citation details late on page one. An additional bounded leading-text check (8000 characters/1000 words) requires exact DOI, near-exact title, matching author, matching year, and no competing DOI. Numbered Introduction/References headings stop evidence collection. The original early-window rules remain; reference-only and wrong-article tests still fail verification. Both actual default PLOS PDF files were downloaded from the publisher and independently verified with the local PDF parser after this correction. This is not a substitute for the subsequent live Cloudflare check.
+
+To update already initialized private services without repeating the D1 import:
+
+```sh
+git pull --ff-only
+npm run deploy:stage2:workers
+npm run smoke:stage2
+```
+
+This tests/bundles and redeploys the nine private Workers, preserving vars and leaving bot rollout disabled. It performs no schema operation. Failed real-article checks now include bounded discovery/download/identity diagnostics with counts/status/reason only, excluding document text, source URLs and credentials. Wrangler tail uses its default sampling; an explicit sampling-rate of 1 is rejected by the installed CLI and has been removed.

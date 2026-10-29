@@ -84,3 +84,15 @@ test('source worker honors its assigned request budget and returns a retryable r
   const data = await response.json();
   assert.equal(response.status, 429); assert.equal(data.retry_after_ms, 120000); assert.equal(data.usage.external_requests, 1);
 });
+
+test('PLOS DOI-addressed PDFs are discovered without a four-request resolver redirect chain', async () => {
+  for (const [suffix, journal] of [['pmed.0020124','plosmedicine'], ['pone.0000308','plosone'], ['pbio.1000001','plosbiology']]) {
+    const target = { ...metadata, doi: '10.1371/journal.' + suffix };
+    const budget = new RequestBudget({ maxRequests: 3, fetcher: async () => { throw Error('resolver must not be fetched'); } });
+    const candidates = await probeSource('MAJOR_PUBLISHERS_A', target, budget);
+    assert.equal(candidates.length, 1); const url = new URL(candidates[0].url);
+    assert.equal(url.hostname, 'journals.plos.org'); assert.equal(url.pathname, '/' + journal + '/article/file');
+    assert.equal(url.searchParams.get('id'), target.doi); assert.equal(url.searchParams.get('type'), 'printable');
+    assert.equal(candidates[0].identity_verified, undefined); assert.equal(budget.requests, 0);
+  }
+});

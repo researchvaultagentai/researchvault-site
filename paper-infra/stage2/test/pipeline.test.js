@@ -95,3 +95,25 @@ test('private final-byte verification does not need DB or discovery bindings', a
   const invalid = await x.finder.fetch(new Request('https://rv.internal/v2/verify', { method: 'POST', body: x.bytes }), {});
   assert.ok(invalid.status >= 400); x.db.raw.close();
 });
+
+test('a PLOS publisher candidate resolves under the existing three-request source limit without DOI redirects', async () => {
+  const doi = '10.1371/journal.pmed.0020124', db = sqliteD1();
+  const target = { ...metadata, doi };
+  const bytes = makePdf([target.title, 'A Smith', '2026', doi, 'Abstract', 'Independent software fixture.']);
+  const source = createSourceWorker(async () => { throw Error('publisher discovery must not use resolver hops'); });
+  const finder = createPdfFinder({ fetcher: async url => {
+    const parsed = new URL(url); assert.equal(parsed.hostname, 'journals.plos.org');
+    assert.equal(parsed.searchParams.get('id'), doi); assert.equal(parsed.searchParams.get('type'), 'printable');
+    return new Response(bytes);
+  }, verifier: inspectDocument });
+  const resolver = createDoiResolver({ fetcher: async () => Response.json({ message: { ...crossref().message,
+    DOI: doi, publisher: 'Public Library of Science (PLoS)', URL: 'https://doi.org/' + doi } }) });
+  const response = await resolver.fetch(new Request('https://rv.internal/v2/resolve', { method: 'POST', body: JSON.stringify({ doi }) }), {
+    PAPER_DB: db, PDF_FINDER: { fetch: request => finder.fetch(request, { PAPER_DB: db,
+      SOURCE_04_PUBLISHERS_A: { fetch: req => source.fetch(req, { SOURCE_GROUP: 'MAJOR_PUBLISHERS_A' }) } }) },
+  });
+  assert.equal(response.status, 200);
+  const record = decodeRecord(response.headers.get('x-rv-paper'));
+  assert.equal(record.proof.verdict, 'verified'); assert.equal(record.candidate.source, 'plos-publisher');
+  assert.equal(record.usage.external_requests, 2); db.raw.close();
+});

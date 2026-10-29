@@ -54,7 +54,8 @@ export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } 
     }
     if (request.method !== 'POST' || path !== '/v2/find') return new Response('Not found', { status: 404 });
     let budget, store;
-    let external = 0, invocations = 1;
+    let external = 0, invocations = 1; const diagnostics = [];
+    const note = value => { if (diagnostics.length < 35) diagnostics.push(value); };
     try {
       const input = await requestInput(request), metadata = input.metadata;
       if (!metadata || normalizeDoi(metadata.doi) !== metadata.doi || typeof metadata.title !== 'string'
@@ -110,13 +111,15 @@ export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } 
             const count = Number(data.usage?.external_requests);
             if (!Number.isInteger(count) || count < 0 || count > sourceQuota || !Array.isArray(data.candidates) || data.candidates.length > 15) throw new Error('invalid_source_contract');
             external += count;
+            note({ stage: 'discovery', group: route.group, candidates: data.candidates.length,
+              http_status: response.status, reason: /^[a-z_]{1,60}$/.test(data.error || '') ? data.error : undefined });
             if (!response.ok || !data.candidates.length) await store.record(route.group, metadata.family || 'longtail', {
               latencyMs: clock() - started, retryAfterMs: Math.min(86400000, Number(data.retry_after_ms) || 0), httpStatus: data.http_status || response.status,
             });
             return data.candidates.map(item => ({ ...item, group: route.group }));
           } catch {
             // Unknown source consumption is charged conservatively against the total budget.
-            external += sourceQuota;
+            external += sourceQuota; note({ stage: 'discovery', group: route.group, reason: 'source_contract_or_connection_failed' });
             await store.record(route.group, metadata.family || 'longtail', { latencyMs: clock() - started, retryAfterMs: 60000 });
             return [];
           } finally { clearTimeout(timer); }
@@ -137,6 +140,7 @@ export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } 
             seenHashes.add(hash);
             const proof = await verify(download.bytes, metadata, { deadline });
             const success = proof.verdict === 'verified';
+            note({ stage: 'identity', group: candidate.group, verdict: proof.verdict, reason: proof.reason });
             await store.record(candidate.group, metadata.family || 'longtail', { success, latencyMs: clock() - started, httpStatus: 200 });
             if (success) {
               const resolved = { ...candidate, url: download.url };
@@ -145,6 +149,8 @@ export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } 
               return pdfResponse({ metadata, candidate: resolved, proof, bytes: download.bytes }, usage());
             }
           } catch (error) {
+            note({ stage: 'download', group: candidate.group, http_status: Number(error.status) || 0,
+              reason: error instanceof ResolutionError ? error.code : 'download_or_conversion_failed' });
             await store.record(candidate.group, metadata.family || 'longtail', { latencyMs: clock() - started,
               httpStatus: Number(error.status) || 0, retryAfterMs: error.status === 429 ? error.retryAfterMs : error.status === 403 ? 300000 : 0 });
           }
@@ -152,7 +158,7 @@ export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } 
         if (external + budget.requests >= 16 || budget.requests >= 8) break;
       }
       return json({ status: budget.remaining() < 100 ? 'timeout' : 'not_found', metadata, retryable: true,
-        retry_after_ms: 180000, usage: usage(), version: PIPELINE_VERSION });
+        retry_after_ms: 180000, usage: usage(), diagnostics, version: PIPELINE_VERSION });
     } catch (error) {
       return json({ status: 'error', error: error instanceof ResolutionError ? error.code : 'finder_unavailable', retryable: true,
         usage: { external_requests: external + (budget?.requests || 0), worker_invocations: invocations }, version: PIPELINE_VERSION }, 503);
