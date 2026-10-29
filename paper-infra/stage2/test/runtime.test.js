@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { crossref, metadata, makePdf } from './fixtures.js';
@@ -21,7 +22,7 @@ test('nine real workerd Workers share D1, service bindings and the PDF text RPC 
   const workers = [];
   for (const name of configs) {
     const cfg = JSON.parse(readFileSync(new URL(`../wrangler.${name}.jsonc`, import.meta.url), 'utf8'));
-    const compiled = await build({ entryPoints: [new URL('../' + cfg.main, import.meta.url).pathname],
+    const compiled = await build({ entryPoints: [fileURLToPath(new URL('../' + cfg.main, import.meta.url))],
       bundle: true, format: 'esm', platform: 'browser', target: 'es2022', write: false });
     workers.push({ name: cfg.name, modules: true, script: compiled.outputFiles[0].text,
       compatibilityDate: cfg.compatibility_date, bindings: cfg.vars, outboundService: outbound,
