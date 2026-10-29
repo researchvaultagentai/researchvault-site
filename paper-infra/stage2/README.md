@@ -61,3 +61,24 @@ First set the bot flag to `false` and percent to `0` and redeploy the same bot v
 - https://developers.cloudflare.com/workers/platform/limits/
 - https://developers.cloudflare.com/workers-ai/features/markdown-conversion/usage/binding/
 - https://developers.cloudflare.com/workers-ai/features/markdown-conversion/how-it-works/
+
+## One-command live smoke after deployment
+
+With the existing Wrangler login on the operator's machine, from this directory:
+
+```sh
+git pull --ff-only
+npm run smoke:stage2
+```
+
+This uses `getPlatformProxy` with nine explicitly remote service bindings in `stage2/wrangler.smoke.jsonc`. The local Node tool calls the already deployed services through a temporary Wrangler remote binding session; it does not deploy a public endpoint, import a database, send Telegram messages, or enable the bot. The config has no main entrypoint and is excluded from the deployment script.
+
+The test checks all nine private health endpoints, live PDF text conversion on a matching authored fixture, rejection/uncertainty for a different authored PDF, and exact-byte proof for two known OA PLOS articles. Real DOI calls can update only the pipeline's existing cache/lease/health tables through normal resolution. It reports timings, source, proof reason and request usage without printing tokens, PDF bytes or private URLs. It stops if infrastructure/conversion checks fail, and exits unsuccessfully if any real DOI fails; a green local unit suite is never substituted for this live result. Other DOI samples can be passed with `npm run smoke:stage2 -- 10.xxxx/example` (maximum five).
+
+The smoke is an initial live check, not a claim of broad publisher coverage or acceptable production CPU/latency. Check Cloudflare live CPU/errors and representative publisher cohorts before enabling the bot.
+
+References for the two default openly accessible samples:
+- https://journals.plos.org/plosmedicine/article?id=10.1371/journal.pmed.0020124
+- https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0000308
+- https://developers.cloudflare.com/workers/wrangler/api/#getplatformproxy
+- https://developers.cloudflare.com/workers/local-development/#remote-bindings

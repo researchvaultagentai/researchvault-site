@@ -30,7 +30,8 @@
     "deploy:all": "npm run deploy:sources && npm run deploy:pdf && npm run deploy:doi",
     "test:stage2": "node --test stage2/test/*.test.js",
     "check:stage2": "node scripts/stage2.mjs validate && npm run test:stage2 && node scripts/stage2.mjs bundle",
-    "deploy:stage2": "npm run check:stage2 && node scripts/stage2.mjs deploy"
+    "deploy:stage2": "npm run check:stage2 && node scripts/stage2.mjs deploy",
+    "smoke:stage2": "node scripts/smoke-stage2.mjs"
   },
   "devDependencies": {
     "wrangler": "4.147.0",

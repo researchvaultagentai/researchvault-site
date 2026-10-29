@@ -1,0 +1,55 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "rv-paper-smoke-local",
+  "account_id": "36c3a32f4feac9d764c4f82b66c3a9d5",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": false,
+  "preview_urls": false,
+  "services": [
+    {
+      "binding": "DOI",
+      "service": "rv-doi-resolver",
+      "remote": true
+    },
+    {
+      "binding": "PDF",
+      "service": "rv-pdf-finder",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_01_OA",
+      "service": "rv-source-01-oa",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_02_BIOMED",
+      "service": "rv-source-02-biomed",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_03_PREPRINTS",
+      "service": "rv-source-03-preprints",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_04_PUBLISHERS_A",
+      "service": "rv-source-04-publishers-a",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_05_PUBLISHERS_B",
+      "service": "rv-source-05-publishers-b",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_06_SOCIETY_TECH",
+      "service": "rv-source-06-society-tech",
+      "remote": true
+    },
+    {
+      "binding": "SOURCE_07_LONGTAIL",
+      "service": "rv-source-07-longtail",
+      "remote": true
+    }
+  ]
+}
