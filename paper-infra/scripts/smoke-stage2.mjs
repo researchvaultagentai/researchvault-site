@@ -26,14 +26,27 @@ class SmokeCallError extends Error {
     this.retryable = retryable;
   }
 }
+function fixedBodyOptions(options) {
+  if (options.body == null) return options;
+  let body = options.body, length;
+  if (typeof body === 'string') length = new TextEncoder().encode(body).length;
+  else if (ArrayBuffer.isView(body)) {
+    body = new Uint8Array(body.buffer, body.byteOffset, body.byteLength).slice().buffer; length = body.byteLength;
+  } else if (body instanceof ArrayBuffer) { body = body.slice(0); length = body.byteLength; }
+  else throw Error('unsupported_smoke_body');
+  return { ...options, body, headers: { ...options.headers, 'content-length': String(length) } };
+}
 async function call(binding, path, options = {}) {
   if (!binding?.fetch) throw Error('smoke_binding_missing');
-  const controller = new AbortController(); let timer;
+  options = fixedBodyOptions(options);
+  const controller = new AbortController(); let timer, phase = 'waiting_for_headers';
   try {
     return await Promise.race([(async () => {
       const response = await binding.fetch('https://rv.internal' + path, { ...options, signal: controller.signal });
+      phase = 'reading_response_body';
       const pdf = /application\/pdf/i.test(response.headers.get('content-type') || '');
       const bytes = await boundedBytes(response, pdf ? MAX_PDF_BYTES : 100000);
+      phase = 'decoding_response';
       let data;
       if (!pdf) {
         const text = new TextDecoder().decode(bytes);
@@ -51,7 +64,7 @@ async function call(binding, path, options = {}) {
   } catch (error) {
     const failure = error instanceof SmokeCallError ? error : new SmokeCallError('binding_call_failed', { detail: error.message,
       retryable: /network|connection|fetch failed|timeout|temporar|ECONN|socket/i.test(error.message || '') });
-    failure.details.request_path = path;
+    failure.details.request_path = path; failure.details.phase = phase;
     throw failure;
   } finally { clearTimeout(timer); }
 }
@@ -89,10 +102,26 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
     report({ check: 'health', service, ok });
     if (!ok) throw Error('remote_health_failed:' + service);
   }
+  report({ check: 'upload_json', phase: 'start' });
+  const uploadJson = await call(env.PDF, '/v2/verify', { method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-rv-target': encodeRecord(fixtureTarget) }, body: '{}' });
+  const jsonOk = uploadJson.ok && uploadJson.data?.proof?.verdict === 'rejected'
+    && uploadJson.data?.proof?.reason === 'not_pdf_or_size_limit';
+  report({ check: 'upload_json', ok: jsonOk });
+  if (!jsonOk) throw Error('json_upload_probe_failed');
+  report({ check: 'upload_pdf', phase: 'start' });
+  const uploadPdf = await call(env.PDF, '/v2/verify', { method: 'POST',
+    headers: { 'content-type': 'application/pdf', 'x-rv-target': encodeRecord(fixtureTarget) },
+    body: new TextEncoder().encode('not a PDF') });
+  const pdfOk = uploadPdf.ok && uploadPdf.data?.proof?.verdict === 'rejected'
+    && uploadPdf.data?.proof?.reason === 'not_pdf_or_size_limit';
+  report({ check: 'upload_pdf', ok: pdfOk, verdict: uploadPdf.data?.proof?.verdict });
+  if (!pdfOk) throw Error('binary_upload_probe_failed');
   const correct = makePdf();
   const wrong = makePdf(['Unrelated observations of remote cosmic structures', 'B Jones', '2025', '10.5555/other',
     'Abstract', 'Synthetic document that must never match the requested robotics article.']);
   for (const [label, bytes, shouldVerify] of [['matching_pdf', correct, true], ['wrong_pdf', wrong, false]]) {
+    report({ check: label, phase: 'start', request_bytes: bytes.length });
     const result = await call(env.PDF, '/v2/verify', { method: 'POST',
       headers: { 'content-type': 'application/pdf', 'x-rv-target': encodeRecord(fixtureTarget) }, body: bytes });
     const proof = result.data?.proof;
@@ -117,13 +146,19 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
 }
 async function main() {
   const { getPlatformProxy } = await import('wrangler');
-  let platform;
+  const { startSmokeTail } = await import('./smoke-tail.mjs');
+  const report = value => console.log('[LIVE]', JSON.stringify(value));
+  let platform, trace;
   try {
     console.log('Testing deployed private paper services using the existing Wrangler login. No bot deployment or database import.');
     platform = await getPlatformProxy({ configPath: fileURLToPath(new URL('../stage2/wrangler.smoke.jsonc', import.meta.url)),
       persist: false, remoteBindings: true });
-    await runSmoke(platform.env, { dois: process.argv.slice(2).length ? process.argv.slice(2) : SAMPLE_DOIS });
-  } finally { await platform?.dispose(); }
+    trace = await startSmokeTail(report);
+    await runSmoke(platform.env, { dois: process.argv.slice(2).length ? process.argv.slice(2) : SAMPLE_DOIS, report });
+  } finally {
+    if (trace) await new Promise(resolve => setTimeout(resolve, 1200));
+    await trace?.stop(); await platform?.dispose();
+  }
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch(error => { console.error('Remote smoke stopped:', error.details ? JSON.stringify(error.details) : safeDetail(error.message)); process.exitCode = 1; });

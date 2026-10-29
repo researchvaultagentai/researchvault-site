@@ -6,6 +6,7 @@ import { build } from 'esbuild';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { crossref, metadata, makePdf } from './fixtures.js';
 import { decodeRecord } from '../common.js';
+import { runSmoke, HEALTH_SERVICES } from '../../scripts/smoke-stage2.mjs';
 
 test('nine real workerd Workers share D1, service bindings and the PDF text RPC contract', { timeout: 30000 }, async () => {
   const bytes = makePdf(); let external = 0, conversions = 0;
@@ -38,9 +39,13 @@ test('nine real workerd Workers share D1, service bindings and the PDF text RPC 
         async toMarkdown(file, options) {
           if (file.name !== 'article.pdf' || options.conversionOptions.pdf.metadata !== false) throw Error('wrong conversion contract');
           await this.env.TRACK.fetch('https://test/count');
-          return { data: ${JSON.stringify(front)}, mimeType: 'application/pdf', format: 'text' };
+          const raw = await file.blob.text();
+          return { data: raw.includes('cosmic structures') ? 'Unrelated observations of remote cosmic structures\\nB Jones 2025\\n10.5555/other\\nAbstract\\nUnrelated.' : ${JSON.stringify(front)}, mimeType: 'application/pdf', format: 'text' };
         }
       }`, serviceBindings: { TRACK: async () => { conversions++; return new Response('OK'); } },
+  });
+  workers.push({ name: 'test-smoke-host', modules: true, script: 'export default { fetch(){return new Response(\"OK\")} }',
+    serviceBindings: Object.fromEntries(HEALTH_SERVICES),
   });
   const mf = new Miniflare(convertV4MiniflareOptions({ workers }));
   try {
@@ -62,5 +67,11 @@ test('nine real workerd Workers share D1, service bindings and the PDF text RPC 
     assert.equal(record.proof.verdict, 'verified'); assert.equal(record.proof.doi, metadata.doi);
     assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
     assert.equal(conversions, 1); assert.ok(external <= 18); assert.ok(record.usage.worker_invocations <= 6);
+    const nodeBindings = await mf.getBindings('test-smoke-host'), reports = [];
+    await runSmoke(nodeBindings, { dois: [metadata.doi], report: value => reports.push(value) });
+    assert.equal(reports.find(r => r.check === 'upload_json' && r.ok)?.ok, true);
+    assert.equal(reports.find(r => r.check === 'upload_pdf' && r.ok)?.ok, true);
+    assert.equal(reports.at(-1).check, 'complete');
+    assert.equal(conversions, 3);
   } finally { await mf.dispose(); }
 });

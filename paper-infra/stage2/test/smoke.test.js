@@ -13,8 +13,11 @@ function setup({ unhealthy = false, uncertain = false, wrongRealHash = false } =
     const path = new URL(url).pathname; calls.push({ binding, path });
     if (path === '/health') return Response.json({ ok: !(unhealthy && binding === 'DOI'), version: 'paper-v2.0',
       schema_ready: true, finder_configured: true, database_configured: true, pdf_text_configured: true, source_bindings: 7 });
+    if (path === '/v2/probe') return Response.json({ error: 'invalid_source_request' }, { status: 400 });
     if (path === '/v2/verify') {
-      const target = decodeRecord(init.headers['x-rv-target']), bytes = init.body;
+      const target = decodeRecord(init.headers['x-rv-target']), bytes = typeof init.body === 'string' ? new TextEncoder().encode(init.body) : new Uint8Array(init.body);
+      assert.equal(Number(init.headers['content-length']), bytes.length);
+      if (bytes.length < 64) return Response.json({ proof: { verdict: 'rejected', reason: 'not_pdf_or_size_limit' } });
       const isWrong = new TextDecoder().decode(bytes).includes('cosmic structures');
       return Response.json({ proof: { verdict: uncertain ? 'uncertain' : isWrong ? 'rejected' : 'verified',
         verifier: 'identity-v1', doi: target.doi, byte_length: bytes.length, sha256: await sha256(bytes), reason: 'fixture_only' } });
@@ -31,7 +34,7 @@ function setup({ unhealthy = false, uncertain = false, wrongRealHash = false } =
 test('remote smoke checks all nine health endpoints and both identity outcomes before real DOI work', async () => {
   const x = setup(); await runSmoke(x.env, x.options);
   assert.equal(x.calls.filter(c => c.path === '/health').length, 9);
-  assert.equal(x.calls.filter(c => c.path === '/v2/verify').length, 2);
+  assert.equal(x.calls.filter(c => c.path === '/v2/verify').length, 4);
   assert.equal(x.calls.filter(c => c.path === '/v2/resolve').length, SAMPLE_DOIS.length);
   assert.equal(x.reports.at(-1).bot_rollout_changed, false);
   assert.equal(x.reports.at(-1).real_pdfs_verified, 2);
@@ -61,7 +64,7 @@ test('the local smoke config exposes only nine remote services and initializes W
 
 test('plain-text connection loss on the ninth binding is reported and a bounded health retry can recover', async () => {
   const x = setup(), original = x.env.SOURCE_07_LONGTAIL.fetch; let attempts = 0;
-  x.env.SOURCE_07_LONGTAIL.fetch = async (...args) => ++attempts === 1
+  x.env.SOURCE_07_LONGTAIL.fetch = async (...args) => new URL(args[0]).pathname === '/health' && ++attempts === 1
     ? new Response('Error: Network connection lost.', { status: 500, headers: { 'content-type': 'text/plain' } }) : original(...args);
   await runSmoke(x.env, { ...x.options, pause: async () => {} });
   assert.equal(attempts, 2);

@@ -84,3 +84,7 @@ References for the two default openly accessible samples:
 - https://developers.cloudflare.com/workers/local-development/#remote-bindings
 
 Live health probes retry transient connection/HTTP failures at most three times (500ms and 1000ms pauses). Each failed attempt reports the service, HTTP status, response type, request path and a short sanitized error excerpt. Authentication failures are not retried. POST verification/resolution requests are never automatically replayed; a failed health probe still prevents later stages and never counts as a pass.
+
+The operator smoke now first sends two tiny deliberately invalid PDF inputs (a JSON string body and a binary body) to the private verifier. Each must return its normal format rejection without invoking conversion. These distinguish upload transport from the subsequent valid-PDF conversion check. All known bodies are snapshotted with exact byte lengths; timeout diagnostics identify waiting-for-headers versus reading-response-body.
+
+During this operator check only, a temporary `wrangler tail rv-pdf-finder --format json` subprocess uses the existing login to report execution outcome, method, status and sanitized exception messages. It never prints raw request headers/URLs or stack traces, and is stopped when the check ends. A missing trace is reported separately and never counts as successful PDF verification. No production code, deployment or schema change is needed for these diagnostics.
