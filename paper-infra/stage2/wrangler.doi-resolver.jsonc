@@ -1,0 +1,32 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "rv-doi-resolver",
+  "main": "doi-resolver.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "WORKER_ID": "rv-doi-resolver",
+    "PIPELINE_VERSION": "paper-v2.0"
+  },
+  "services": [
+    {
+      "binding": "PDF_FINDER",
+      "service": "rv-pdf-finder"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "keep_vars": true,
+  "d1_databases": [
+    {
+      "binding": "PAPER_DB",
+      "database_name": "researchvault-db",
+      "database_id": "5a85c8e3-99c3-441b-8c07-94d41a1a5f2a",
+      "migrations_dir": "../migrations/stage2"
+    }
+  ],
+  "account_id": "36c3a32f4feac9d764c4f82b66c3a9d5"
+}

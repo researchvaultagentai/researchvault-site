@@ -1,0 +1,59 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "rv-pdf-finder",
+  "main": "finder.js",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "WORKER_ID": "rv-pdf-finder",
+    "PIPELINE_VERSION": "paper-v2.0"
+  },
+  "services": [
+    {
+      "binding": "SOURCE_01_OA",
+      "service": "rv-source-01-oa"
+    },
+    {
+      "binding": "SOURCE_02_BIOMED",
+      "service": "rv-source-02-biomed"
+    },
+    {
+      "binding": "SOURCE_03_PREPRINTS",
+      "service": "rv-source-03-preprints"
+    },
+    {
+      "binding": "SOURCE_04_PUBLISHERS_A",
+      "service": "rv-source-04-publishers-a"
+    },
+    {
+      "binding": "SOURCE_05_PUBLISHERS_B",
+      "service": "rv-source-05-publishers-b"
+    },
+    {
+      "binding": "SOURCE_06_SOCIETY_TECH",
+      "service": "rv-source-06-society-tech"
+    },
+    {
+      "binding": "SOURCE_07_LONGTAIL",
+      "service": "rv-source-07-longtail"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "keep_vars": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "d1_databases": [
+    {
+      "binding": "PAPER_DB",
+      "database_name": "researchvault-db",
+      "database_id": "5a85c8e3-99c3-441b-8c07-94d41a1a5f2a",
+      "migrations_dir": "../migrations/stage2"
+    }
+  ],
+  "account_id": "36c3a32f4feac9d764c4f82b66c3a9d5"
+}
