@@ -82,3 +82,5 @@ References for the two default openly accessible samples:
 - https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0000308
 - https://developers.cloudflare.com/workers/wrangler/api/#getplatformproxy
 - https://developers.cloudflare.com/workers/local-development/#remote-bindings
+
+Live health probes retry transient connection/HTTP failures at most three times (500ms and 1000ms pauses). Each failed attempt reports the service, HTTP status, response type, request path and a short sanitized error excerpt. Authentication failures are not retried. POST verification/resolution requests are never automatically replayed; a failed health probe still prevents later stages and never counts as a pass.

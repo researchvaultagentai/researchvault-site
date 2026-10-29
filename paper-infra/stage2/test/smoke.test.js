@@ -58,3 +58,38 @@ test('the local smoke config exposes only nine remote services and initializes W
   try { for (const [binding] of HEALTH_SERVICES) assert.ok(platform.env[binding]?.fetch); }
   finally { await platform.dispose(); }
 });
+
+test('plain-text connection loss on the ninth binding is reported and a bounded health retry can recover', async () => {
+  const x = setup(), original = x.env.SOURCE_07_LONGTAIL.fetch; let attempts = 0;
+  x.env.SOURCE_07_LONGTAIL.fetch = async (...args) => ++attempts === 1
+    ? new Response('Error: Network connection lost.', { status: 500, headers: { 'content-type': 'text/plain' } }) : original(...args);
+  await runSmoke(x.env, { ...x.options, pause: async () => {} });
+  assert.equal(attempts, 2);
+  const failure = x.reports.find(r => r.check === 'health_attempt');
+  assert.equal(failure.service, 'rv-source-07-longtail'); assert.equal(failure.http_status, 500);
+  assert.equal(failure.reason, 'non_json_response'); assert.match(failure.detail, /Network connection lost/);
+  assert.equal(x.reports.at(-1).check, 'complete');
+});
+test('persistent plain-text health failures stop after three attempts and preserve a sanitized diagnostic', async () => {
+  const x = setup(); let attempts = 0;
+  x.env.SOURCE_07_LONGTAIL.fetch = async () => {
+    attempts++; return new Response('Error: Network connection lost. https://private.example/path?token=unsafe token=unsafe', {
+      status: 502, headers: { 'content-type': 'text/plain', 'cf-ray': '1234567890abcdef-FRA' },
+    });
+  };
+  await assert.rejects(runSmoke(x.env, { ...x.options, pause: async () => {} }), /rv-source-07-longtail/);
+  assert.equal(attempts, 3); assert.equal(x.calls.filter(c => c.path === '/v2/verify').length, 0);
+  assert.equal(x.reports.at(-1).ok, false);
+  assert.ok(!JSON.stringify(x.reports).includes('unsafe'));
+  assert.ok(!JSON.stringify(x.reports).includes('private.example'));
+});
+test('authentication errors and POST verification failures are never retried', async () => {
+  const a = setup(); let authCalls = 0;
+  a.env.DOI.fetch = async () => { authCalls++; return new Response('Access denied', { status: 403 }); };
+  await assert.rejects(runSmoke(a.env, { ...a.options, pause: async () => {} })); assert.equal(authCalls, 1);
+  const b = setup(), original = b.env.PDF.fetch; let postCalls = 0;
+  b.env.PDF.fetch = async (url, init) => init?.method === 'POST'
+    ? (postCalls++, new Response('Error: Network connection lost.', { status: 500 })) : original(url, init);
+  await assert.rejects(runSmoke(b.env, { ...b.options, pause: async () => {} }), /non_json_response/);
+  assert.equal(postCalls, 1); assert.ok(!b.reports.some(r => r.check === 'complete'));
+});
