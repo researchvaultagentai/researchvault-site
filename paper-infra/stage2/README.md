@@ -83,7 +83,11 @@ References for the two default openly accessible samples:
 - https://developers.cloudflare.com/workers/wrangler/api/#getplatformproxy
 - https://developers.cloudflare.com/workers/local-development/#remote-bindings
 
-Live health probes retry transient connection/HTTP failures at most three times (500ms and 1000ms pauses). Each failed attempt reports the service, HTTP status, response type, request path and a short sanitized error excerpt. Authentication failures are not retried. POST verification/resolution requests are never automatically replayed; a failed health probe still prevents later stages and never counts as a pass.
+Live health probes retry transient connection/HTTP failures at most three times (500ms and 1000ms pauses). Each failed attempt reports the service, HTTP status, response type, request path and a short sanitized error excerpt. Authentication failures are not retried. A failed health probe still prevents later stages and never counts as a pass.
+
+The side-effect-free private `/v2/verify` probes can repeat only after an explicitly recognized `Network connection lost`/`daemonDown` transport failure: at most three calls per probe, with 1s/2s pauses and a fresh identical body snapshot each time. Every retry is reported as `verification_transport_retry`; `complete` includes their total. A lost response may mean the converter already executed, so the limited retry can repeat conversion work. Timeouts, authentication errors, other HTTP/application errors and rejected/uncertain identity results are never replayed to seek a different verdict. DOI `/v2/resolve` calls, which maintain leases/cache, are not automatically replayed. All real article proofs still must pass before `complete` can be reported. This operator-tool change needs no Worker deployment: pull the branch and rerun `npm run smoke:stage2`.
+
+Cloudflare documents these connection failures and retry handling at https://developers.cloudflare.com/workers/observability/errors/#runtime-errors.
 
 The operator smoke now first sends two tiny deliberately invalid PDF inputs (a JSON string body and a binary body) to the private verifier. Each must return its normal format rejection without invoking conversion. These distinguish upload transport from the subsequent valid-PDF conversion check. All known bodies are snapshotted with exact byte lengths; timeout diagnostics identify waiting-for-headers versus reading-response-body.
 

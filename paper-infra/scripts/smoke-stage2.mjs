@@ -13,6 +13,7 @@ export const HEALTH_SERVICES = [
 ];
 export const SAMPLE_DOIS = ['10.1371/journal.pmed.0020124', '10.1371/journal.pone.0000308'];
 const TRANSIENT_HTTP = new Set([408, 429, 500, 502, 503, 504]);
+const connectionLoss = value => /^(?:Error:\s*)?(?:Network connection lost\b|daemonDown\b)/i.test(String(value || '').trim());
 function safeDetail(value) {
   return String(value || '').replace(/\b(?:https?|wss?):\/\/[^\s"'<>]+/gi, '[url]')
     .replace(/\b(?:Bearer|Basic)\s+\S+/gi, '[credential]')
@@ -20,10 +21,10 @@ function safeDetail(value) {
     .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[redacted]').replace(/\s+/g, ' ').slice(0, 220);
 }
 class SmokeCallError extends Error {
-  constructor(reason, { status, contentType, detail, retryable = false, ray } = {}) {
+  constructor(reason, { status, contentType, detail, retryable = false, connectionLost = false, ray } = {}) {
     super(reason); this.details = { reason, http_status: status, content_type: contentType,
       detail: safeDetail(detail), retryable, cf_ray: ray };
-    this.retryable = retryable;
+    this.retryable = retryable; this.connectionLost = connectionLost;
   }
 }
 function fixedBodyOptions(options) {
@@ -55,7 +56,8 @@ async function call(binding, path, options = {}) {
           throw new SmokeCallError('non_json_response', { status: response.status,
             contentType: safeDetail(response.headers.get('content-type') || 'unspecified'), detail: text,
             ray: safeDetail(response.headers.get('cf-ray') || '') || undefined,
-            retryable: TRANSIENT_HTTP.has(response.status) || /^(?:Error:\s*)?(?:Network connection lost|daemonDown)/i.test(text.trim()) });
+            retryable: TRANSIENT_HTTP.has(response.status),
+            connectionLost: TRANSIENT_HTTP.has(response.status) && connectionLoss(text) });
         }
       }
       return { ok: response.ok, status: response.status, bytes,
@@ -63,7 +65,8 @@ async function call(binding, path, options = {}) {
     })(), new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new SmokeCallError('smoke_call_timeout', { retryable: true })); }, 30000); })]);
   } catch (error) {
     const failure = error instanceof SmokeCallError ? error : new SmokeCallError('binding_call_failed', { detail: error.message,
-      retryable: /network|connection|fetch failed|timeout|temporar|ECONN|socket/i.test(error.message || '') });
+      retryable: /network|connection|fetch failed|timeout|temporar|ECONN|socket/i.test(error.message || ''),
+      connectionLost: connectionLoss(error.message) });
     failure.details.request_path = path; failure.details.phase = phase;
     throw failure;
   } finally { clearTimeout(timer); }
@@ -77,6 +80,22 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
   if (!Array.isArray(dois) || !dois.length || dois.length > 5 || dois.some(doi => normalizeDoi(doi) !== doi)) {
     throw Error('provide_one_to_five_normalized_dois');
   }
+  let verificationRetries = 0;
+  // This private endpoint only checks supplied bytes: no D1, publishing or bot
+  // effects. Replay only a recognized broken connection, never a verifier result,
+  // timeout, auth failure, generic 5xx or the stateful DOI resolution request.
+  const verifyCall = async (label, options) => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try { return await call(env.PDF, '/v2/verify', options); }
+      catch (error) {
+        if (!error.connectionLost || attempt === 3) throw error;
+        const delay = attempt * 1000; verificationRetries++;
+        report({ check: 'verification_transport_retry', service: 'rv-pdf-finder', probe: label,
+          attempt, retry_in_ms: delay, ...error.details });
+        await pause(delay);
+      }
+    }
+  };
   for (const [binding, service] of HEALTH_SERVICES) {
     let result;
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -103,14 +122,14 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
     if (!ok) throw Error('remote_health_failed:' + service);
   }
   report({ check: 'upload_json', phase: 'start' });
-  const uploadJson = await call(env.PDF, '/v2/verify', { method: 'POST',
+  const uploadJson = await verifyCall('upload_json', { method: 'POST',
     headers: { 'content-type': 'application/json', 'x-rv-target': encodeRecord(fixtureTarget) }, body: '{}' });
   const jsonOk = uploadJson.ok && uploadJson.data?.proof?.verdict === 'rejected'
     && uploadJson.data?.proof?.reason === 'not_pdf_or_size_limit';
   report({ check: 'upload_json', ok: jsonOk });
   if (!jsonOk) throw Error('json_upload_probe_failed');
   report({ check: 'upload_pdf', phase: 'start' });
-  const uploadPdf = await call(env.PDF, '/v2/verify', { method: 'POST',
+  const uploadPdf = await verifyCall('upload_pdf', { method: 'POST',
     headers: { 'content-type': 'application/pdf', 'x-rv-target': encodeRecord(fixtureTarget) },
     body: new TextEncoder().encode('not a PDF') });
   const pdfOk = uploadPdf.ok && uploadPdf.data?.proof?.verdict === 'rejected'
@@ -122,7 +141,7 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
     'Abstract', 'Synthetic document that must never match the requested robotics article.']);
   for (const [label, bytes, shouldVerify] of [['matching_pdf', correct, true], ['wrong_pdf', wrong, false]]) {
     report({ check: label, phase: 'start', request_bytes: bytes.length });
-    const result = await call(env.PDF, '/v2/verify', { method: 'POST',
+    const result = await verifyCall(label, { method: 'POST',
       headers: { 'content-type': 'application/pdf', 'x-rv-target': encodeRecord(fixtureTarget) }, body: bytes });
     const proof = result.data?.proof;
     const ok = result.ok && (shouldVerify ? await proofMatches(bytes, proof, fixtureTarget.doi) : proof?.verdict === 'rejected' || proof?.verdict === 'uncertain');
@@ -141,7 +160,7 @@ export async function runSmoke(env, { dois = SAMPLE_DOIS, report = value => cons
     if (valid) found++;
   }
   if (found !== dois.length) throw Error('real_article_smoke_incomplete');
-  report({ check: 'complete', ok: true, real_pdfs_verified: found, bot_rollout_changed: false,
+  report({ check: 'complete', ok: true, real_pdfs_verified: found, verification_transport_retries: verificationRetries, bot_rollout_changed: false,
     note: 'Representative smoke only; inspect live CPU/errors and broader publishers before promotion.' });
 }
 async function main() {

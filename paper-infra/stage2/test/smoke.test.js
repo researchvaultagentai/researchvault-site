@@ -86,7 +86,7 @@ test('persistent plain-text health failures stop after three attempts and preser
   assert.ok(!JSON.stringify(x.reports).includes('unsafe'));
   assert.ok(!JSON.stringify(x.reports).includes('private.example'));
 });
-test('authentication errors and POST verification failures are never retried', async () => {
+test('authentication errors stop immediately and persistent verification connection loss stops after three calls', async () => {
   const a = setup(); let authCalls = 0;
   a.env.DOI.fetch = async () => { authCalls++; return new Response('Access denied', { status: 403 }); };
   await assert.rejects(runSmoke(a.env, { ...a.options, pause: async () => {} })); assert.equal(authCalls, 1);
@@ -94,5 +94,72 @@ test('authentication errors and POST verification failures are never retried', a
   b.env.PDF.fetch = async (url, init) => init?.method === 'POST'
     ? (postCalls++, new Response('Error: Network connection lost.', { status: 500 })) : original(url, init);
   await assert.rejects(runSmoke(b.env, { ...b.options, pause: async () => {} }), /non_json_response/);
-  assert.equal(postCalls, 1); assert.ok(!b.reports.some(r => r.check === 'complete'));
+  assert.equal(postCalls, 3); assert.ok(!b.reports.some(r => r.check === 'complete'));
+  assert.equal(b.reports.filter(r => r.check === 'verification_transport_retry').length, 2);
+  assert.equal(b.calls.filter(c => c.path === '/v2/resolve').length, 0);
+});
+
+test('verification connection recovery replays identical fresh bytes and still requires both real article proofs', async () => {
+  const x = setup(), original = x.env.PDF.fetch, pauses = [], snapshots = [];
+  let attempts = 0;
+  x.env.PDF.fetch = async (url, init) => {
+    if (init?.method !== 'POST' || typeof init.body === 'string') return original(url, init);
+    const bytes = new Uint8Array(init.body);
+    if (bytes.length < 64 || new TextDecoder().decode(bytes).includes('cosmic structures')) return original(url, init);
+    attempts++; snapshots.push(bytes.slice());
+    const response = await original(url, init); // The remote verifier may already have finished.
+    if (attempts < 3) {
+      structuredClone(init.body, { transfer: [init.body] }); // Simulate consumed request transport.
+      return new Response('Error: Network connection lost. token=unsafe', { status: 500 });
+    }
+    return response;
+  };
+  await runSmoke(x.env, { ...x.options, pause: async ms => { pauses.push(ms); } });
+  assert.equal(attempts, 3); assert.deepEqual(pauses, [1000, 2000]);
+  for (const bytes of snapshots) assert.deepEqual(bytes, makePdf());
+  assert.equal(x.reports.at(-1).verification_transport_retries, 2);
+  assert.equal(x.reports.filter(r => r.check === 'real_article' && r.ok).length, 2);
+  assert.equal(x.calls.filter(c => c.path === '/v2/resolve').length, 2);
+  assert.ok(!JSON.stringify(x.reports).includes('unsafe'));
+});
+
+test('verification retries exclude auth, arbitrary HTTP errors, unreadable results and incorrect identity verdicts', async () => {
+  for (const failure of [
+    () => new Response('Access denied', { status: 403 }),
+    () => new Response('Network connection lost.', { status: 401 }),
+    () => new Response('Worker threw exception', { status: 500 }),
+    () => Response.json({ error: 'converter_failed' }, { status: 503 }),
+    () => new Response('malformed result', { status: 200 }),
+    () => Response.json({ proof: { verdict: 'uncertain', reason: 'pdf_text_service_failed' } }),
+  ]) {
+    const x = setup(), original = x.env.PDF.fetch; let calls = 0;
+    x.env.PDF.fetch = async (url, init) => init?.method === 'POST' ? (calls++, failure()) : original(url, init);
+    await assert.rejects(runSmoke(x.env, { ...x.options, pause: async () => {} }));
+    assert.equal(calls, 1); assert.ok(!x.reports.some(r => r.check === 'verification_transport_retry' || r.check === 'complete'));
+  }
+  const x = setup({ uncertain: true });
+  await assert.rejects(runSmoke(x.env, { ...x.options, pause: async () => {} }), /remote_conversion_or_identity_failed/);
+  assert.equal(x.calls.filter(c => c.path === '/v2/verify').length, 3);
+  assert.equal(x.calls.filter(c => c.path === '/v2/resolve').length, 0);
+});
+
+test('stateful DOI resolution requests are not replayed after a lost connection', async () => {
+  const x = setup(); let calls = 0;
+  x.env.DOI.fetch = async url => {
+    if (new URL(url).pathname === '/health') return Response.json({ ok: true, version: 'paper-v2.0', schema_ready: true, finder_configured: true });
+    calls++; throw Error('Network connection lost.');
+  };
+  await assert.rejects(runSmoke(x.env, { ...x.options, pause: async () => {} }), /binding_call_failed/);
+  assert.equal(calls, 1); assert.ok(!x.reports.some(r => r.check === 'complete'));
+});
+
+test('a thrown verification connection error can recover without changing verdict requirements', async () => {
+  const x = setup(), original = x.env.PDF.fetch; let failures = 0;
+  x.env.PDF.fetch = async (url, init) => {
+    if (init?.method === 'POST' && failures++ === 0) throw Error('Network connection lost.');
+    return original(url, init);
+  };
+  await runSmoke(x.env, { ...x.options, pause: async () => {} });
+  assert.equal(x.reports.at(-1).verification_transport_retries, 1);
+  assert.equal(x.reports.at(-1).real_pdfs_verified, 2);
 });
