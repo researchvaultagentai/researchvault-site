@@ -42,3 +42,16 @@ test('HTML and damaged PDF containers never reach conversion', async () => {
   await inspectProductionPdf(makePdf().slice(0, -20), metadata, { converter });
   assert.equal(calls, 0);
 });
+
+test('native converter separator loss can verify only a strict publisher frontmatter identity', async () => {
+  const target = { ...metadata, doi: '10.1371/journal.pone.0000308' };
+  const text = `${target.title.replace('sensors improve', 'sensorsimprove')}\nA Smith 2026\n${target.doi}INTRODUCTIONSharing results.`;
+  const bytes = makePdf();
+  const result = await inspectProductionPdf(bytes, target, { converter: async () => ({ format: 'text', data: text }) });
+  assert.equal(result.verdict, 'verified');
+  assert.equal(result.reason, 'serialized_frontmatter_doi_title_author_year');
+  assert.equal(result.sha256, (await inspectDocument(bytes, metadata)).sha256);
+  const wrong = await inspectProductionPdf(bytes, target, { converter: async () => ({ format: 'text',
+    data: text.replace('0000308', '0000309') }) });
+  assert.equal(wrong.verdict, 'rejected'); assert.equal(wrong.reason, 'first_page_doi_mismatch');
+});

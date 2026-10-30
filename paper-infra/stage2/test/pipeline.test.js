@@ -117,3 +117,23 @@ test('a PLOS publisher candidate resolves under the existing three-request sourc
   assert.equal(record.proof.verdict, 'verified'); assert.equal(record.candidate.source, 'plos-publisher');
   assert.equal(record.usage.external_requests, 2); db.raw.close();
 });
+
+test('failed identity diagnostics expose bounded comparison fields and byte fingerprint without converted text', async () => {
+  const db = sqliteD1(), bytes = makePdf();
+  const finder = createPdfFinder({ fetcher: async () => new Response(bytes), verifier: async () => ({
+    verdict: 'rejected', reason: 'first_page_doi_mismatch', sha256: await sha256(bytes), byte_length: bytes.length,
+    evidence: { title_score: 0.5, doi_match: false, observed_doi_count: 1, doi_target_prefix_only: true,
+      text: 'private converted text', observed_doi: '10.9999/private', secret: 'hidden' },
+  }) });
+  const response = await finder.fetch(new Request('https://rv.internal/v2/find', {
+    method: 'POST', body: JSON.stringify({ metadata }),
+  }), { PAPER_DB: db, SOURCE_01_OA: { fetch: async () => Response.json({
+    candidates: [{ url: 'https://papers.example.edu/a.pdf', source: 'oa' }], usage: { external_requests: 0 },
+  }) } });
+  const data = await response.json(), identity = data.diagnostics.find(item => item.stage === 'identity');
+  assert.equal(data.status, 'not_found'); assert.equal(identity.sha256, await sha256(bytes));
+  assert.equal(identity.byte_length, bytes.length);
+  assert.deepEqual(identity.evidence, { doi_match: false, doi_target_prefix_only: true, title_score: 0.5, observed_doi_count: 1 });
+  assert.ok(!JSON.stringify(data.diagnostics).includes('private'));
+  assert.ok(!JSON.stringify(data.diagnostics).includes('hidden')); db.raw.close();
+});

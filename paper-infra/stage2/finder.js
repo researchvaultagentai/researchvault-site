@@ -33,6 +33,21 @@ function pdfResponse(result, usage) {
     'x-rv-paper': encodeRecord({ metadata, candidate, proof: result.proof, usage, version: PIPELINE_VERSION }) } });
 }
 
+function identityDiagnostic(proof) {
+  const evidence = {};
+  for (const key of ['doi_match', 'author_match', 'year_match', 'doi_target_prefix_only',
+    'serialized_doi_boundary', 'compact_title_match', 'author_before_doi', 'year_before_doi']) {
+    if (typeof proof.evidence?.[key] === 'boolean') evidence[key] = proof.evidence[key];
+  }
+  const score = proof.evidence?.title_score, count = proof.evidence?.observed_doi_count;
+  if (Number.isFinite(score) && score >= 0 && score <= 1) evidence.title_score = score;
+  if (Number.isInteger(count) && count >= 0 && count <= 1000) evidence.observed_doi_count = count;
+  return { evidence,
+    sha256: /^[a-f0-9]{64}$/.test(proof.sha256 || '') ? proof.sha256 : undefined,
+    byte_length: Number.isInteger(proof.byte_length) && proof.byte_length > 0 && proof.byte_length <= MAX_PDF_BYTES
+      ? proof.byte_length : undefined };
+}
+
 export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } = {}) {
   return { async fetch(request, env) {
     const path = new URL(request.url).pathname;
@@ -140,7 +155,8 @@ export function createPdfFinder({ fetcher = fetch, verifier, clock = Date.now } 
             seenHashes.add(hash);
             const proof = await verify(download.bytes, metadata, { deadline });
             const success = proof.verdict === 'verified';
-            note({ stage: 'identity', group: candidate.group, verdict: proof.verdict, reason: proof.reason });
+            note({ stage: 'identity', group: candidate.group, verdict: proof.verdict, reason: proof.reason,
+              ...identityDiagnostic(proof) });
             await store.record(candidate.group, metadata.family || 'longtail', { success, latencyMs: clock() - started, httpStatus: 200 });
             if (success) {
               const resolved = { ...candidate, url: download.url };

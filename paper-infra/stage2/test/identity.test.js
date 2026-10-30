@@ -70,3 +70,37 @@ test('numbered reference or introduction headings cannot expose a later citation
     assert.notEqual(assessIdentity(metadata, { firstPageText: text }).verdict, 'verified');
   }
 });
+
+test('separator-free PLOS frontmatter requires exact compact title plus author/year before the DOI', () => {
+  const target = { ...metadata, doi: '10.1371/journal.pmed.0020124' };
+  const joinedTitle = target.title.replace('sensors improve', 'sensorsimprove');
+  const front = `${joinedTitle}\nA Smith\n2026\nDOI: ${target.doi}SummaryThere is a scientific result.`;
+  const result = assessIdentity(target, { firstPageText: front });
+  assert.equal(result.verdict, 'verified');
+  assert.equal(result.reason, 'serialized_frontmatter_doi_title_author_year');
+  assert.equal(result.evidence.compact_title_match, true);
+  for (const altered of [front.replace('A Smith', 'B Jones'), front.replace('2026', '2010'),
+    front.replace('delicate forces', 'ocean currents'), front.replace('0020124', '0020125'),
+    front.replace('A Smith', '') + '\nA Smith', front.replace('2026', '') + '\n2026',
+    `Another paper\n10.9999/other\n${front}`, `Supplementary Information\n${front}`,
+    `SupplementaryInformation${front}`, `SupportingInformation${front}`,
+    `An unrelated paper\nB Jones\nReferences\n${front}`,
+    `An unrelated paperB Jones2010REFERENCES${front}`,
+    `An unrelated paperB Jones2010INTRODUCTION${front}`]) {
+    assert.notEqual(assessIdentity(target, { firstPageText: altered }).verdict, 'verified', altered);
+  }
+});
+
+test('DOI continuations, generic DOI suffixes and unrecognized headings are never shortened to the target', () => {
+  const target = { ...metadata, doi: '10.1371/journal.pone.0000308' };
+  const front = `${target.title}\nA Smith\n2026\n${target.doi}`;
+  for (const suffix of ['.g001INTRODUCTIONSharing', '0INTRODUCTIONSharing', 'xINTRODUCTIONSharing',
+    'OTHERSECTIONSharing', 'Summarylowercase', 'INTRODUCTIONlowercase']) {
+    assert.notEqual(assessIdentity(target, { firstPageText: front + suffix }).verdict, 'verified');
+  }
+  assert.notEqual(assessIdentity(metadata, { firstPageText:
+    `${metadata.title}\nA Smith\n2026\n${metadata.doi}SummaryThere is a result.` }).verdict, 'verified');
+  const short = { ...target, title: 'Robotic force sensing' };
+  assert.notEqual(assessIdentity(short, { firstPageText:
+    `${short.title}\nA Smith\n2026\n${short.doi}INTRODUCTIONSharing results.` }).verdict, 'verified');
+});

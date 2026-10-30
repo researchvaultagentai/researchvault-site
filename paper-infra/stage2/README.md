@@ -95,6 +95,20 @@ The two default PLOS DOI URLs currently use three redirects before the article p
 
 Some old multi-column PDFs serialize title/citation details late on page one. An additional bounded leading-text check (8000 characters/1000 words) requires exact DOI, near-exact title, matching author, matching year, and no competing DOI. Numbered Introduction/References headings stop evidence collection. The original early-window rules remain; reference-only and wrong-article tests still fail verification. Both actual default PLOS PDF files were downloaded from the publisher and independently verified with the local PDF parser after this correction. This is not a substitute for the subsequent live Cloudflare check.
 
+### Separator-free PDF text
+
+The next operator smoke reached real PDF identity checks, but both default articles were rejected as `first_page_doi_mismatch`. Parsing each real publisher PDF locally and concatenating its text objects without inserting separators reproduces that rejection: the observed strings become `10.1371/journal.pmed.0020124SummaryThere` and `10.1371/journal.pone.0000308INTRODUCTIONSharing`. Some title words are joined too. This reproducer does not establish the exact live converter output; failed-identity diagnostics now include allowlisted comparison booleans/counts and the exact downloaded file's SHA-256/length, without converted text or observed DOI strings.
+
+Only a recognized fixed-width PLOS article DOI immediately followed by `Summary` or `INTRODUCTION` and an uppercase start of body text can have that boundary restored. This path needs an exact full title after ignoring whitespace/punctuation, plus author and year **before** the DOI, a non-generic title, and no competing DOI. Generic DOI suffixes, figure/supplement suffixes, wrong numeric identifiers and arbitrary trailing words are never trimmed. Missing evidence stays unverified. Both real first-page reproductions pass with and without inserted text-object separators after this correction; live conversion still needs the operator smoke gate.
+
+This change requires only a finder update, with no schema import, source/coordinator deployment or bot activation:
+
+```sh
+git pull --ff-only &&
+npx wrangler deploy --config stage2/wrangler.pdf-finder.jsonc &&
+npm run smoke:stage2
+```
+
 To update already initialized private services without repeating the D1 import:
 
 ```sh
