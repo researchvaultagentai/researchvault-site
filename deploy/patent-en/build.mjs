@@ -8,7 +8,7 @@ const output = path.join(here, 'dist');
 export const ORIGIN = 'https://researchvault-patent.pages.dev';
 const assets = [
   'patent/assets/patent.css', 'patent/assets/patent.js', 'patent/assets/pct-landing.css',
-  'patent/assets/pct-gallery.js', 'patent/assets/pct-patent-agent.webp',
+  'patent/assets/pct-landing.js', 'patent/assets/pct-patent-agent.webp',
   'patent/assets/account.js', 'patent/assets/dashboard-en.js',
   'patent/assets/intake-en.js', 'patent/assets/signature.js',
   'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js',

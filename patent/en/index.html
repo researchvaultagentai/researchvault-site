@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/patent.css">
   <link rel="stylesheet" href="../assets/pct-landing.css">
-  <script src="../assets/pct-gallery.js" defer></script>
+  <script src="../assets/pct-landing.js" defer></script>
 </head>
 <body class="en-page pct-home">
 <a class="pct-skip" href="#main">Skip to content</a>
@@ -23,7 +23,7 @@
     <nav class="pct-nav-links" aria-label="PCT navigation">
       <a href="#scope">Process</a>
       <a href="#services">Pricing</a>
-      <a href="dashboard/">Client portal</a>
+      <a href="dashboard/"><span class="pct-nav-wide">Client portal</span><span class="pct-nav-compact">Portal</span></a>
       <a href="account/">Account</a>
       <a class="admin-only" href="https://researchvaultagent.ir/patent/admin/">Admin</a>
       <a class="pct-language" href="https://researchvaultagent.ir/patent/" lang="fa" aria-label="نسخه فارسی">FA</a>
@@ -31,7 +31,7 @@
   </div>
 </header>
 <main id="main" tabindex="-1">
-  <section class="pct-hero pct-frame" aria-labelledby="pct-title">
+  <section class="pct-hero pct-frame" data-pct-illuminate aria-labelledby="pct-title">
     <div class="pct-gallery" data-pct-gallery role="group" aria-roledescription="carousel" aria-label="Patent illustrations">
       <div class="pct-gallery-media" data-pct-media>
         <div class="pct-slide pct-slide-robot" data-pct-slide="Patent Agent Robot" role="group" aria-roledescription="slide" aria-label="Patent Agent Robot, 1 of 2">
@@ -66,6 +66,7 @@
             <g fill="#dbe9cf" font-size="12" font-family="monospace" letter-spacing="1"><text x="56" y="308">IDEA</text><text x="447" y="90">FILING</text></g>
           </svg>
         </div>
+        <div class="pct-hero-light" aria-hidden="true"></div>
       </div>
       <div class="pct-gallery-controls" data-pct-controls hidden>
         <div class="pct-gallery-caption" role="status" aria-atomic="true">
@@ -81,7 +82,7 @@
       </div>
     </div>
     <div class="pct-hero-copy">
-      <p class="pct-kicker"><span></span> International patent services</p>
+      <p class="pct-kicker"><span></span> International PCT services</p>
       <h1 id="pct-title">From invention<br> to <em>PCT filing.</em></h1>
       <p class="pct-intro">Assess what’s new and what you can claim before investing in drafting and PCT filing.</p>
       <div class="pct-actions">
@@ -103,14 +104,54 @@
       <div><p class="pct-kicker"><span></span> Process</p><h2>A clear path to filing.</h2></div>
       <p>Each stage gives you a clear next decision, from opening a confidential case to deciding whether to proceed with PCT drafting and filing.</p>
     </div>
-    <ol class="pct-steps" role="list">
-      <li><span aria-hidden="true">1</span><strong>Verify identity</strong></li>
-      <li><span aria-hidden="true">2</span><strong>Sign the NDA</strong></li>
-      <li><span aria-hidden="true">3</span><strong>Disclose the invention</strong></li>
-      <li><span aria-hidden="true">4</span><strong>Assess patentability</strong></li>
-      <li><span aria-hidden="true">5</span><strong>Draft &amp; file</strong></li>
-      <li><span aria-hidden="true">6</span><strong>International-phase follow-up</strong></li>
-    </ol>
+    <figure class="pct-roadmap" data-pct-roadmap data-pct-illuminate aria-labelledby="pct-roadmap-title">
+      <figcaption class="pct-roadmap-head">
+        <p id="pct-roadmap-title">PCT service map</p>
+        <span>International phase</span>
+      </figcaption>
+      <div class="pct-roadmap-grid">
+        <div class="pct-roadmap-track" aria-hidden="true"></div>
+        <section class="pct-phase">
+          <div class="pct-phase-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.6 2.7 7.8 7 10 4.3-2.2 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="pct-phase-detail">
+            <h3>Confidential intake</h3>
+            <p>Set up your private case.</p>
+            <ol class="pct-steps" role="list">
+              <li><span aria-hidden="true">1</span>Verify identity</li>
+              <li><span aria-hidden="true">2</span>Sign the NDA</li>
+              <li><span aria-hidden="true">3</span>Disclose the invention</li>
+            </ol>
+          </div>
+        </section>
+        <section class="pct-phase">
+          <div class="pct-phase-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5M8.5 10.5h4m-2-2v4"/></svg>
+          </div>
+          <div class="pct-phase-detail">
+            <h3>Assessment</h3>
+            <p>Review prior art and potential claim directions.</p>
+            <ol class="pct-steps" role="list" start="4">
+              <li><span aria-hidden="true">4</span>Assess patentability</li>
+            </ol>
+          </div>
+        </section>
+        <section class="pct-phase">
+          <div class="pct-phase-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8l4 4v12H6zM14 4v5h4m-9 4h6m-6 3h5"/></svg>
+          </div>
+          <div class="pct-phase-detail">
+            <h3>Drafting &amp; filing</h3>
+            <p>Proceed with the international phase.</p>
+            <ol class="pct-steps" role="list" start="5">
+              <li><span aria-hidden="true">5</span>Draft &amp; file</li>
+              <li><span aria-hidden="true">6</span>International-phase follow-up</li>
+            </ol>
+          </div>
+        </section>
+      </div>
+    </figure>
     <p class="pct-scope"><strong>International phase only.</strong> Our PCT services extend through completion of the international phase. National- or regional-phase entry and prosecution in individual countries or regions are outside the base agreement and are not included in this service.</p>
   </section>
 
@@ -169,6 +210,7 @@
     </div>
   </section>
 </main>
+<div class="pct-reticle" data-pct-reticle aria-hidden="true"></div>
 <script src="../assets/patent.js"></script>
 </body>
 </html>
