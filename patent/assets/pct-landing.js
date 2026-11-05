@@ -61,7 +61,7 @@
       timer = setTimeout(() => {
         step(1);
         schedule();
-      }, 7000);
+      }, 30_000);
     }
   }
 
@@ -69,7 +69,8 @@
     playing = next;
     const label = playing ? 'Pause slideshow' : 'Start slideshow';
     rotate.setAttribute('aria-label', label);
-    rotate.title = label;
+    rotate.title = label + ' and floating lights';
+    document.body.toggleAttribute('data-pct-ambient-paused', !playing);
     rotate.toggleAttribute('data-pct-rotating', playing);
     schedule();
   }

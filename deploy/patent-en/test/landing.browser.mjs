@@ -47,7 +47,7 @@ const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width &&
   a.y < b.y + b.height && b.y < a.y + a.height;
 const width = (page, value) => page.waitForFunction(n => document.querySelector('[data-pct-robot]').naturalWidth === n, value);
 const active = page => page.locator('[data-pct-status][aria-live="off"]').waitFor();
-const advance = page => page.clock.fastForward(7100);
+const advance = page => page.clock.fastForward(30_100);
 
 try {
   {
@@ -59,8 +59,13 @@ try {
       assert.ok(!overlaps(await button.boundingBox(), await launcher.boundingBox()), 'gallery controls must clear the launcher');
     }
     await active(page);
+    const field = page.locator('.pct-stars-page');
+    const drift = () => field.evaluate(el => getComputedStyle(el, '::after').animationPlayState);
     assert.equal(await count.textContent(), '1 / 2');
-    await advance(page);
+    assert.equal(await drift(), 'running', 'lights drift without scroll');
+    await page.clock.fastForward(24_000);
+    assert.equal(await count.textContent(), '1 / 2', 'the first slide remains visible before 30 seconds');
+    await page.clock.fastForward(6100);
     assert.equal(await count.textContent(), '2 / 2');
     await advance(page);
     assert.equal(await count.textContent(), '1 / 2');
@@ -70,6 +75,7 @@ try {
     assert.equal(await count.textContent(), '1 / 2', 'hover stops rotation');
     await rotation.click();
     assert.equal(await rotation.getAttribute('aria-label'), 'Start slideshow');
+    assert.equal(await drift(), 'paused', 'the pause control also stops ambient drift');
     await page.mouse.move(10, 20);
     await advance(page);
     assert.equal(await count.textContent(), '1 / 2', 'explicit pause survives mouse leave');
@@ -79,7 +85,6 @@ try {
     await next.click();
     assert.equal(await count.textContent(), '2 / 2');
 
-    const field = page.locator('.pct-stars-page');
     const before = await field.evaluate(el => [getComputedStyle(el, '::before').transform, getComputedStyle(el, '::after').transform]);
     await page.mouse.move(13, 300);
     await page.mouse.wheel(0, 460);
@@ -119,7 +124,10 @@ try {
     await next.click();
     assert.equal(await count.textContent(), '2 / 2', 'manual controls work with reduced motion');
     await page.evaluate(() => scrollTo(0, 600));
-    assert.equal(await page.locator('.pct-stars-page').evaluate(el => getComputedStyle(el, '::after').transform), 'none');
+    assert.deepEqual(await page.locator('.pct-stars-page').evaluate(el => {
+      const style = getComputedStyle(el, '::after');
+      return [style.transform, style.animationName];
+    }), ['none', 'none']);
     assert.deepEqual(errors, []);
     await context.close();
   }
