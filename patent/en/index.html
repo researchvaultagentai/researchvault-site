@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/patent.css">
   <link rel="stylesheet" href="../assets/pct-landing.css">
+  <script src="../assets/pct-landing.js" defer></script>
 </head>
 <body class="en-page pct-home">
 <a class="pct-skip" href="#main">Skip to content</a>
@@ -22,105 +23,170 @@
     <nav class="pct-nav-links" aria-label="PCT navigation">
       <a href="#scope">Process</a>
       <a href="#services">Pricing</a>
-      <a href="dashboard/">Client portal</a>
-      <a href="account/" data-account-link>Sign in / Account</a>
+      <a href="dashboard/"><span class="pct-nav-wide">Client portal</span><span class="pct-nav-compact">Portal</span></a>
+      <a href="account/">Account</a>
       <a class="admin-only" href="https://researchvaultagent.ir/patent/admin/">Admin</a>
       <a class="pct-language" href="https://researchvaultagent.ir/patent/" lang="fa" aria-label="نسخه فارسی">FA</a>
     </nav>
   </div>
 </header>
 <main id="main" tabindex="-1">
-  <section class="pct-hero pct-wrap" aria-labelledby="pct-title">
+  <section class="pct-hero pct-frame" data-pct-illuminate aria-labelledby="pct-title">
+    <div class="pct-gallery" data-pct-gallery role="group" aria-roledescription="carousel" aria-label="Patent illustrations">
+      <div class="pct-gallery-media" data-pct-media>
+        <div class="pct-slide pct-slide-robot" data-pct-slide="Patent Agent Robot" role="group" aria-roledescription="slide" aria-label="Patent Agent Robot, 1 of 2">
+          <img src="../assets/pct-patent-agent.webp" width="1672" height="941" fetchpriority="high" alt="ResearchVault’s patent agent robot holds a magnifying glass and a patent document.">
+        </div>
+        <div class="pct-slide pct-slide-blueprint" data-pct-slide="From idea to filing" role="group" aria-roledescription="slide" aria-label="From idea to filing, 2 of 2" hidden>
+          <svg class="pct-blueprint" viewBox="0 0 560 380" fill="none" aria-hidden="true">
+            <defs>
+              <radialGradient id="pct-glow"><stop stop-color="#72d326" stop-opacity=".24"/><stop offset="1" stop-color="#72d326" stop-opacity="0"/></radialGradient>
+              <linearGradient id="pct-paper" x1="206" y1="76" x2="362" y2="303" gradientUnits="userSpaceOnUse"><stop stop-color="#f5faef"/><stop offset="1" stop-color="#dbe9cf"/></linearGradient>
+            </defs>
+            <ellipse cx="282" cy="190" rx="250" ry="188" fill="url(#pct-glow)"/>
+            <g stroke="#b8ef7f" stroke-opacity=".28">
+              <circle cx="280" cy="189" r="146" stroke-dasharray="3 7"/><circle cx="280" cy="189" r="112"/>
+              <path d="M46 189h468M280 22v334M95 71h370M95 307h370" stroke-dasharray="2 7"/>
+              <ellipse cx="280" cy="189" rx="208" ry="79" transform="rotate(-22 280 189)"/>
+            </g>
+            <path class="pct-trace" pathLength="1" d="M76 276h79l37-42h177l43-119h75" stroke="#b8ef7f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M79 276h69l37-42m181 0 46-119h75" stroke="#b8ef7f" stroke-opacity=".28" stroke-dasharray="3 5"/>
+            <g class="pct-paper">
+              <path d="M220 80h112l43 43v168a13 13 0 0 1-13 13H220a13 13 0 0 1-13-13V93a13 13 0 0 1 13-13Z" fill="#17351b" stroke="#b8ef7f" stroke-opacity=".6" transform="translate(12 10)"/>
+              <path d="M220 80h112l43 43v168a13 13 0 0 1-13 13H220a13 13 0 0 1-13-13V93a13 13 0 0 1 13-13Z" fill="url(#pct-paper)"/>
+              <path d="M332 81v34a8 8 0 0 0 8 8h34" stroke="#4f9f13" stroke-opacity=".6" stroke-width="2"/>
+              <text x="231" y="123" fill="#17351b" font-size="23" font-weight="800" letter-spacing="1">PCT</text>
+              <path d="M232 137h59M232 259h112m-112 12h81m-81 12h99" stroke="#4f9f13" stroke-opacity=".6" stroke-width="2" stroke-linecap="round"/>
+              <rect x="232" y="152" width="111" height="92" rx="6" fill="#f5faef" stroke="#4f9f13" stroke-opacity=".4"/>
+              <path d="m287 167 37 19v30l-37 16-37-16v-30l37-19Zm-37 19 37 18 37-18m-37 18v28" stroke="#4f9f13" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="m268 177 37 19m-37 0 37-19m-37 18v30m37-30v30" stroke="#4f9f13" stroke-opacity=".55" stroke-dasharray="2 3"/>
+            </g>
+            <g fill="#17351b" stroke="#b8ef7f"><circle cx="76" cy="276" r="12"/><circle cx="487" cy="115" r="12"/></g>
+            <g fill="#b8ef7f"><circle cx="76" cy="276" r="4"/><circle cx="487" cy="115" r="4"/></g>
+            <g fill="#dbe9cf" font-size="12" font-family="monospace" letter-spacing="1"><text x="56" y="308">IDEA</text><text x="447" y="90">FILING</text></g>
+          </svg>
+        </div>
+        <div class="pct-hero-light" aria-hidden="true"></div>
+      </div>
+      <div class="pct-gallery-controls" data-pct-controls hidden>
+        <div class="pct-gallery-caption" role="status" aria-atomic="true">
+          <span data-pct-caption>Patent Agent Robot</span>
+          <span class="pct-gallery-count" data-pct-count>1 / 2</span>
+        </div>
+        <button type="button" data-pct-direction="-1" aria-label="Previous illustration">
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M15.5 10h-11m0 0L9 5.5M4.5 10 9 14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" data-pct-direction="1" aria-label="Next illustration">
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M4.5 10h11m0 0L11 5.5m4.5 4.5L11 14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
     <div class="pct-hero-copy">
-      <p class="pct-kicker"><span></span> International patent services</p>
+      <p class="pct-kicker"><span></span> International PCT services</p>
       <h1 id="pct-title">From invention<br> to <em>PCT filing.</em></h1>
-      <p class="pct-intro">Understand what’s new and what you can claim. We assess prior art and patentability before you commit to drafting and filing.</p>
+      <p class="pct-intro">Assess what’s new and what you can claim before investing in drafting and PCT filing.</p>
       <div class="pct-actions">
         <a class="pct-button pct-primary" href="account/?next=/patent/en/intake/">Start a confidential case <span aria-hidden="true">↗</span></a>
         <a class="pct-button pct-secondary" href="#scope">Explore the process <span aria-hidden="true">↓</span></a>
       </div>
       <p class="pct-hero-note"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><rect x="5" y="9" width="10" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" stroke-width="1.5"/></svg> NDA before technical disclosure</p>
     </div>
-    <div class="pct-visual" aria-hidden="true">
-      <div class="pct-visual-top"><span>THE PCT PATHWAY</span><span>FIG. 01</span></div>
-      <svg class="pct-blueprint" viewBox="0 0 560 380" fill="none">
-        <defs>
-          <radialGradient id="pct-glow"><stop stop-color="#72d326" stop-opacity=".24"/><stop offset="1" stop-color="#72d326" stop-opacity="0"/></radialGradient>
-          <linearGradient id="pct-paper" x1="206" y1="76" x2="362" y2="303" gradientUnits="userSpaceOnUse"><stop stop-color="#f5faef"/><stop offset="1" stop-color="#dbe9cf"/></linearGradient>
-        </defs>
-        <ellipse cx="282" cy="190" rx="250" ry="188" fill="url(#pct-glow)"/>
-        <g stroke="#b8ef7f" stroke-opacity=".28">
-          <circle cx="280" cy="189" r="146" stroke-dasharray="3 7"/><circle cx="280" cy="189" r="112"/>
-          <path d="M46 189h468M280 22v334M95 71h370M95 307h370" stroke-dasharray="2 7"/>
-          <ellipse cx="280" cy="189" rx="208" ry="79" transform="rotate(-22 280 189)"/>
-        </g>
-        <path class="pct-trace" pathLength="1" d="M76 276h79l37-42h177l43-119h75" stroke="#b8ef7f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M79 276h69l37-42m181 0 46-119h75" stroke="#b8ef7f" stroke-opacity=".28" stroke-dasharray="3 5"/>
-        <g class="pct-paper">
-          <path d="M220 80h112l43 43v168a13 13 0 0 1-13 13H220a13 13 0 0 1-13-13V93a13 13 0 0 1 13-13Z" fill="#17351b" stroke="#b8ef7f" stroke-opacity=".6" transform="translate(12 10)"/>
-          <path d="M220 80h112l43 43v168a13 13 0 0 1-13 13H220a13 13 0 0 1-13-13V93a13 13 0 0 1 13-13Z" fill="url(#pct-paper)"/>
-          <path d="M332 81v34a8 8 0 0 0 8 8h34" stroke="#4f9f13" stroke-opacity=".6" stroke-width="2"/>
-          <text x="231" y="123" fill="#17351b" font-size="23" font-weight="800" letter-spacing="1">PCT</text>
-          <path d="M232 137h59M232 259h112m-112 12h81m-81 12h99" stroke="#4f9f13" stroke-opacity=".6" stroke-width="2" stroke-linecap="round"/>
-          <rect x="232" y="152" width="111" height="92" rx="6" fill="#f5faef" stroke="#4f9f13" stroke-opacity=".4"/>
-          <path d="m287 167 37 19v30l-37 16-37-16v-30l37-19Zm-37 19 37 18 37-18m-37 18v28" stroke="#4f9f13" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="m268 177 37 19m-37 0 37-19m-37 18v30m37-30v30" stroke="#4f9f13" stroke-opacity=".55" stroke-dasharray="2 3"/>
-        </g>
-        <g fill="#17351b" stroke="#b8ef7f"><circle cx="76" cy="276" r="12"/><circle cx="487" cy="115" r="12"/></g>
-        <g fill="#b8ef7f"><circle cx="76" cy="276" r="4"/><circle cx="487" cy="115" r="4"/></g>
-        <g fill="#dbe9cf" font-size="12" font-family="monospace" letter-spacing="1"><text x="56" y="308">IDEA</text><text x="447" y="90">FILING</text></g>
-      </svg>
-      <div class="pct-visual-bottom"><span>Prior art</span><span>Claims</span><span>International phase</span></div>
-    </div>
   </section>
 
-  <div class="pct-wrap">
-    <div class="pct-summary" aria-label="Engagement at a glance">
-      <div><span>First step</span><strong>Patentability assessment</strong></div>
-      <div><span>Stage 1 · standalone</span><strong>US$1,111</strong></div>
-      <div><span>Filing scope</span><strong>International phase only</strong></div>
-    </div>
-  </div>
+  <dl class="pct-summary pct-wrap" aria-label="Engagement at a glance">
+    <div><dt>First step</dt><dd>Patentability assessment</dd></div>
+    <div><dt>Stage 1 · standalone</dt><dd>US$1,111</dd></div>
+    <div><dt>Filing scope</dt><dd>International phase only</dd></div>
+  </dl>
 
   <section class="pct-section pct-wrap" id="scope">
     <div class="pct-section-head">
-      <div><p class="pct-kicker"><span></span> 01 / Process</p><h2>A clear path to filing.</h2></div>
+      <div><p class="pct-kicker"><span></span> Process</p><h2>A clear path to filing.</h2></div>
       <p>Each stage gives you a clear next decision, from opening a confidential case to deciding whether to proceed with PCT drafting and filing.</p>
     </div>
-    <ol class="pct-steps">
-      <li><span>01</span><strong>Verify identity</strong></li>
-      <li><span>02</span><strong>Sign the NDA</strong></li>
-      <li><span>03</span><strong>Disclose the invention</strong></li>
-      <li><span>04</span><strong>Assess patentability</strong></li>
-      <li><span>05</span><strong>Draft &amp; file</strong></li>
-      <li><span>06</span><strong>International-phase follow-up</strong></li>
-    </ol>
+    <figure class="pct-roadmap" data-pct-roadmap data-pct-illuminate aria-labelledby="pct-roadmap-title">
+      <figcaption class="pct-roadmap-head">
+        <p id="pct-roadmap-title">PCT service map</p>
+        <span>International phase</span>
+      </figcaption>
+      <div class="pct-roadmap-grid">
+        <div class="pct-roadmap-track" aria-hidden="true"></div>
+        <section class="pct-phase">
+          <div class="pct-phase-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.6 2.7 7.8 7 10 4.3-2.2 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="pct-phase-detail">
+            <h3>Confidential intake</h3>
+            <p>Set up your private case.</p>
+            <ol class="pct-steps" role="list">
+              <li><span aria-hidden="true">1</span>Verify identity</li>
+              <li><span aria-hidden="true">2</span>Sign the NDA</li>
+              <li><span aria-hidden="true">3</span>Disclose the invention</li>
+            </ol>
+          </div>
+        </section>
+        <section class="pct-phase">
+          <div class="pct-phase-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5M8.5 10.5h4m-2-2v4"/></svg>
+          </div>
+          <div class="pct-phase-detail">
+            <h3>Assessment</h3>
+            <p>Review prior art and potential claim directions.</p>
+            <ol class="pct-steps" role="list" start="4">
+              <li><span aria-hidden="true">4</span>Assess patentability</li>
+            </ol>
+          </div>
+        </section>
+        <section class="pct-phase">
+          <div class="pct-phase-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8l4 4v12H6zM14 4v5h4m-9 4h6m-6 3h5"/></svg>
+          </div>
+          <div class="pct-phase-detail">
+            <h3>Drafting &amp; filing</h3>
+            <p>Proceed with the international phase.</p>
+            <ol class="pct-steps" role="list" start="5">
+              <li><span aria-hidden="true">5</span>Draft &amp; file</li>
+              <li><span aria-hidden="true">6</span>International-phase follow-up</li>
+            </ol>
+          </div>
+        </section>
+      </div>
+    </figure>
     <p class="pct-scope"><strong>International phase only.</strong> Our PCT services extend through completion of the international phase. National- or regional-phase entry and prosecution in individual countries or regions are outside the base agreement and are not included in this service.</p>
   </section>
 
   <section class="pct-services" id="services">
     <div class="pct-section pct-wrap">
       <div class="pct-section-head">
-        <div><p class="pct-kicker"><span></span> 02 / Services &amp; pricing</p><h2>Start with the assessment.</h2></div>
+        <div><p class="pct-kicker"><span></span> Services &amp; pricing</p><h2>Start with the assessment.</h2></div>
         <p>Order Stage 1 independently. Decide whether to continue to drafting and filing after reviewing the findings.</p>
       </div>
       <div class="pct-cards">
         <article class="pct-service pct-service-featured">
-          <span class="pct-service-label">Stage 1 · Standalone report</span>
+          <div class="pct-service-top">
+            <span class="pct-service-label">Stage 1 · Standalone report</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4m-11-8h5m-2.5-2.5v5"/></svg>
+          </div>
           <h3>Patentability</h3>
           <strong class="pct-price">US$1,111</strong>
           <p>Prior-art search, patentability assessment and invention development. Review novelty, inventive step, technical gaps and potential claim directions.</p>
           <p class="pct-service-fine">A revision requiring a new analysis run after work starts is US$111 per revision package. Draft edits before processing and corrections to our mistakes are free.</p>
         </article>
         <article class="pct-service">
-          <span class="pct-service-label">Stage 2 · Separately quoted</span>
+          <div class="pct-service-top">
+            <span class="pct-service-label">Stage 2 · Separately quoted</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8l4 4v12H6zM14 4v5h4m-9 4h6m-6 3h5"/></svg>
+          </div>
           <h3>Drafting &amp; PCT filing</h3>
           <strong class="pct-price">US$4,500–7,000</strong>
           <p>PCT-grade specification and claims, filing preparation and agreed procedural handling through completion of the international phase.</p>
           <p class="pct-service-fine">Official filing and search fees and third-party costs are separate.</p>
         </article>
         <article class="pct-service">
-          <span class="pct-service-label">Optional · Separately scoped</span>
+          <div class="pct-service-top">
+            <span class="pct-service-label">Optional · Separately scoped</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9m-4-15.8 8 4.5"/></svg>
+          </div>
           <h3>Advanced development</h3>
           <strong class="pct-price">Custom scope</strong>
           <p>Engineering or invention development for concepts that need substantive technical work before filing.</p>
@@ -132,7 +198,7 @@
   <section class="pct-section pct-wrap" aria-labelledby="pct-private">
     <div class="pct-private">
       <div>
-        <p class="pct-kicker"><span></span> 03 / Confidential intake</p>
+        <p class="pct-kicker"><span></span> Confidential intake</p>
         <h2 id="pct-private">Keep your invention private.</h2>
         <p>No technical details are required to get started. Submit descriptions, drawings and files in the private portal after identity verification and NDA execution.</p>
       </div>
@@ -144,6 +210,7 @@
     </div>
   </section>
 </main>
+<div class="pct-reticle" data-pct-reticle aria-hidden="true"></div>
 <script src="../assets/patent.js"></script>
 </body>
 </html>
