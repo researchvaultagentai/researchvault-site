@@ -270,49 +270,42 @@
 .pct-home main > .section h2 { font-size: clamp(1.35rem, 2.6vw, 2rem); line-height: 1.2; letter-spacing: -.035em; }
 .pct-home main > .section p { max-width: 75ch; color: var(--muted); }
 
-/* Sparse near and far lights move at different speeds behind the content. */
+/* Two sparse blue comet textures keep scroll depth and drift independently. */
 .pct-stars {
   inset: 0;
   overflow: hidden;
   contain: paint;
   pointer-events: none;
-  --pct-star-dim: #4c7d3455;
-  --pct-star-core: #4e8a2f90;
-  --pct-star-halo: #72d3262b;
 }
-.pct-stars-page { position: fixed; z-index: -1; }
+.pct-stars-page { position: fixed; z-index: -1; opacity: .68; }
 .pct-stars-hero {
   position: absolute;
-  --pct-star-dim: #d4ffa26b;
-  --pct-star-core: #edffcbdd;
-  --pct-star-halo: #9ce85655;
-  mask-image: linear-gradient(90deg, #0007 0%, #0005 38%, #000 68%);
+  mask-image: linear-gradient(90deg, #0005 0%, #0007 40%, #000 72%);
 }
 .pct-stars::before, .pct-stars::after {
   content: "";
   position: absolute;
-  inset: -360px 0;
+  inset: -400px -28px;
   background-repeat: repeat;
 }
 .pct-stars::before {
-  background-image:
-    radial-gradient(circle at 8% 17%, var(--pct-star-dim) 1px, transparent 1.75px),
-    radial-gradient(circle at 34% 31%, var(--pct-star-dim) 1px, transparent 1.8px),
-    radial-gradient(circle at 68% 16%, var(--pct-star-dim) 1px, transparent 1.7px),
-    radial-gradient(circle at 85% 57%, var(--pct-star-dim) 1px, transparent 1.8px),
-    radial-gradient(circle at 52% 76%, var(--pct-star-dim) 1px, transparent 1.9px),
-    radial-gradient(circle at 14% 88%, var(--pct-star-dim) 1px, transparent 1.8px);
-  background-size: 470px 360px;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22620%22%20height=%22360%22%20viewBox=%220%200%20620%20360%22%3E%20%3Cdefs%3E%3ClinearGradient%20id=%22tail%22%3E%3Cstop%20stop-color=%22%231368e7%22%20stop-opacity=%220%22/%3E%3Cstop%20offset=%22.62%22%20stop-color=%22%23198fff%22%20stop-opacity=%22.38%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%2333dcff%22%20stop-opacity=%220.82%22/%3E%3C/linearGradient%3E%20%3CradialGradient%20id=%22halo%22%3E%3Cstop%20stop-color=%22%2383f4ff%22%20stop-opacity=%22.86%22/%3E%3Cstop%20offset=%22.29%22%20stop-color=%22%2343d9ff%22%20stop-opacity=%22.52%22/%3E%3Cstop%20offset=%22.64%22%20stop-color=%22%231b9dff%22%20stop-opacity=%22.19%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23167fff%22%20stop-opacity=%220%22/%3E%3C/radialGradient%3E%20%3Cg%20id=%22comet%22%3E%3Cpath%20d=%22M-39%200Q-22%20-1.3%200%20-3.1V3.1Q-22%201.3%20-39%200Z%22%20fill=%22url%28%23tail%29%22/%3E%20%3Ccircle%20r=%2212%22%20fill=%22url%28%23halo%29%22/%3E%3Ccircle%20r=%223.7%22%20fill=%22%2325c7ff%22/%3E%3Ccircle%20r=%222.35%22%20fill=%22%23e8fdff%22/%3E%3C/g%3E%3C/defs%3E%20%3Cuse%20href=%22%23comet%22%20transform=%22translate%2882%20146%29%20rotate%28-19%29%20scale%280.68%29%22/%3E%3Cuse%20href=%22%23comet%22%20transform=%22translate%28405%20307%29%20rotate%28-25%29%20scale%280.74%29%22/%3E%20%3C/svg%3E");
+  background-size: 620px 360px;
   transform: translate3d(0, var(--pct-stars-far, 0px), 0);
 }
 .pct-stars::after {
-  background-image:
-    radial-gradient(circle at 16% 40%, var(--pct-star-core) 0 1.25px, var(--pct-star-halo) 2.2px, transparent 7px),
-    radial-gradient(circle at 62% 15%, var(--pct-star-core) 0 1.15px, var(--pct-star-halo) 2px, transparent 6px),
-    radial-gradient(circle at 75% 67%, var(--pct-star-core) 0 1.5px, var(--pct-star-halo) 2.7px, transparent 8px);
-  background-size: 530px 360px;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22760%22%20height=%22360%22%20viewBox=%220%200%20760%20360%22%3E%20%3Cdefs%3E%3ClinearGradient%20id=%22tail%22%3E%3Cstop%20stop-color=%22%231368e7%22%20stop-opacity=%220%22/%3E%3Cstop%20offset=%22.62%22%20stop-color=%22%23198fff%22%20stop-opacity=%22.38%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%2333dcff%22%20stop-opacity=%220.98%22/%3E%3C/linearGradient%3E%20%3CradialGradient%20id=%22halo%22%3E%3Cstop%20stop-color=%22%2383f4ff%22%20stop-opacity=%22.86%22/%3E%3Cstop%20offset=%22.29%22%20stop-color=%22%2343d9ff%22%20stop-opacity=%22.52%22/%3E%3Cstop%20offset=%22.64%22%20stop-color=%22%231b9dff%22%20stop-opacity=%22.19%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23167fff%22%20stop-opacity=%220%22/%3E%3C/radialGradient%3E%20%3Cg%20id=%22comet%22%3E%3Cpath%20d=%22M-64%200Q-22%20-1.3%200%20-3.1V3.1Q-22%201.3%20-64%200Z%22%20fill=%22url%28%23tail%29%22/%3E%20%3Ccircle%20r=%2218%22%20fill=%22url%28%23halo%29%22/%3E%3Ccircle%20r=%223.7%22%20fill=%22%2325c7ff%22/%3E%3Ccircle%20r=%222.35%22%20fill=%22%23e8fdff%22/%3E%3C/g%3E%3C/defs%3E%20%3Cuse%20href=%22%23comet%22%20transform=%22translate%28246%20111%29%20rotate%28-22%29%20scale%281.06%29%22/%3E%3Cuse%20href=%22%23comet%22%20transform=%22translate%28661%20251%29%20rotate%28-17%29%20scale%280.94%29%22/%3E%20%3C/svg%3E");
+  background-size: 760px 360px;
   transform: translate3d(0, var(--pct-stars-near, 0px), 0);
 }
+@media (prefers-reduced-motion: no-preference) {
+  .pct-stars::before { animation: pct-comet-drift-far 12s ease-in-out infinite alternate; }
+  .pct-stars::after { animation: pct-comet-drift-near 8s ease-in-out infinite alternate; }
+}
+.pct-home[data-pct-ambient-paused] .pct-stars::before,
+.pct-home[data-pct-ambient-paused] .pct-stars::after { animation-play-state: paused; }
+@keyframes pct-comet-drift-far { from { translate: -5px 2px; } to { translate: 12px -12px; } }
+@keyframes pct-comet-drift-near { from { translate: -12px 8px; } to { translate: 18px -14px; } }
 
 /* A non-interactive ring accents the native pointer on precise devices. */
 .pct-reticle { display: none; }
