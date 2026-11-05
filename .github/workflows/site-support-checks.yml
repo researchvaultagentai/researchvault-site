@@ -7,6 +7,8 @@ on:
       - assets/rv-support-*.js
       - functions/support/**
       - patent/assets/patent.js
+      - patent/assets/pct-landing.*
+      - patent/assets/pct-robot-preview.jpg
       - patent/en/index.html
       - deploy/patent-en/**
       - test/site-support.test.mjs
@@ -41,6 +43,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify bilingual mobile and desktop interactions
         run: node test/site-support.browser.mjs
+      - name: Verify the PCT landing page
+        run: |
+          if [ -f deploy/patent-en/test/landing.browser.mjs ]; then
+            node deploy/patent-en/test/landing.browser.mjs
+          fi
       - name: Verify international invoice payments
         run: |
           if [ -f deploy/patent-en/test/payments.browser.mjs ]; then
