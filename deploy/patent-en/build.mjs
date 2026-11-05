@@ -54,6 +54,12 @@ async function copyEnglishPages(directory = 'patent/en') {
     const target = isHome ? 'index.html' : source;
     const pagePath = isHome ? '/' : '/' + source.replace(/index\.html$/, '');
     if (isHome) {
+      // The first slide stays visible even if a separate image request fails.
+      const previewSource = 'src="../assets/pct-robot-preview.jpg"';
+      if (!html.includes(previewSource)) throw new Error('Missing inline robot preview');
+      const robotPreview = await readFile(path.join(repository, 'patent/assets/pct-robot-preview.jpg'));
+      html = html.replace(previewSource, `src="data:image/jpeg;base64,${robotPreview.toString('base64')}"`);
+
       // The home page moves to /. Resolve its original relative asset/link URLs
       // against its old directory; the remaining portal routes retain their paths.
       html = html.replace(/\b(href|src)="([^"]+)"/g, (all, attr, value) => {

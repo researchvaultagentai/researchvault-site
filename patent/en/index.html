@@ -9,10 +9,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/patent.css">
-  <link rel="stylesheet" href="../assets/pct-landing.css">
-  <script src="../assets/pct-landing.js" defer></script>
+  <link rel="stylesheet" href="../assets/pct-landing.css?v=2">
+  <script src="../assets/pct-landing.js?v=2" defer></script>
 </head>
 <body class="en-page pct-home">
+<div class="pct-stars pct-stars-page" data-pct-stars aria-hidden="true"></div>
 <a class="pct-skip" href="#main">Skip to content</a>
 <header class="pct-header">
   <div class="pct-wrap pct-nav">
@@ -35,7 +36,7 @@
     <div class="pct-gallery" data-pct-gallery role="group" aria-roledescription="carousel" aria-label="Patent illustrations">
       <div class="pct-gallery-media" data-pct-media>
         <div class="pct-slide pct-slide-robot" data-pct-slide="Patent Agent Robot" role="group" aria-roledescription="slide" aria-label="Patent Agent Robot, 1 of 2">
-          <img src="../assets/pct-patent-agent.webp" width="1672" height="941" fetchpriority="high" alt="ResearchVault’s patent agent robot holds a magnifying glass and a patent document.">
+          <img src="../assets/pct-robot-preview.jpg" width="640" height="360" data-pct-robot data-full="/patent/assets/pct-patent-agent.webp?v=2" data-fallback="/assets/patent-hero-robot.png" alt="ResearchVault’s patent agent robot holds a magnifying glass and a patent document.">
         </div>
         <div class="pct-slide pct-slide-blueprint" data-pct-slide="From idea to filing" role="group" aria-roledescription="slide" aria-label="From idea to filing, 2 of 2" hidden>
           <svg class="pct-blueprint" viewBox="0 0 560 380" fill="none" aria-hidden="true">
@@ -67,12 +68,17 @@
           </svg>
         </div>
         <div class="pct-hero-light" aria-hidden="true"></div>
+        <div class="pct-stars pct-stars-hero" data-pct-stars aria-hidden="true"></div>
       </div>
       <div class="pct-gallery-controls" data-pct-controls hidden>
-        <div class="pct-gallery-caption" role="status" aria-atomic="true">
+        <div class="pct-gallery-caption" data-pct-status role="status" aria-live="off" aria-atomic="true">
           <span data-pct-caption>Patent Agent Robot</span>
           <span class="pct-gallery-count" data-pct-count>1 / 2</span>
         </div>
+        <button type="button" class="pct-rotate" data-pct-rotate aria-label="Start slideshow" title="Start slideshow">
+          <svg class="pct-play-icon" aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="m7 5 8 5-8 5V5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <svg class="pct-pause-icon" aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M7.5 5v10m5-10v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
         <button type="button" data-pct-direction="-1" aria-label="Previous illustration">
           <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="M15.5 10h-11m0 0L9 5.5M4.5 10 9 14.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
