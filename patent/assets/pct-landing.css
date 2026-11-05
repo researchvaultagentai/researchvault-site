@@ -275,6 +275,15 @@
   .pct-steps li:nth-child(n+3) { border-top: 1px solid var(--line); }
   .pct-private .pct-actions { gap: 1px; }
 }
+@media (max-width: 360px) {
+  .pct-hero-copy { padding-top: 20px; }
+  .pct-hero .pct-primary, .pct-private .pct-primary {
+    min-height: 48px;
+    padding-inline: 9px;
+    gap: 6px;
+    font-size: .8rem;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   html:has(.pct-home) { scroll-behavior: auto; }
   .pct-home *, .pct-home *::before, .pct-home *::after { animation: none; transition: none; }
