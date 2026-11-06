@@ -38,5 +38,5 @@ export function supportReplyInScope(text, scope) {
   if (/ResearchVaultAgentBot|(?:find|retrieve|download)\s+(?:a\s+|research\s+)?(?:papers?|articles?)|(?:دریافت|یافتن|دانلود)\s+مقاله/iu.test(text)) return false;
   if (scope === 'patent_iran') return !INTERNATIONAL.test(text) &&
     !/\$\s*\d|1[,\s]?111|۱[٬,\s]?۱۱۱|\b111\b|۱۱۱/iu.test(text);
-  return !DOMESTIC.test(text) && !/https?:\/\/(?:www\.)?researchvaultagent\.ir(?:[\/\s]|$)/iu.test(text);
+  return !DOMESTIC.test(text) && !/\bresearchvaultagent\.ir\b/iu.test(text);
 }
