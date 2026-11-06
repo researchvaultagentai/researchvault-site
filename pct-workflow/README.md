@@ -76,23 +76,20 @@ Run `node pct-workflow/scripts/release.mjs enable-response-timing ../rv-pct-priv
 
 ### International USDT checkout
 
-Configure two secrets on the private `researchvault-pct-workflow` Worker. Set
-`PCT_USDT_ADDRESSES` to a comma-separated list of fresh public TRON receiving
-addresses controlled in SafePal. Use a dedicated address for each invoice and
-never provision an address previously shown for an unrelated payment. Set
-`PCT_TRONGRID_API_KEY` to the mainnet TronGrid API key. The checkout receives
-funds directly at those addresses. It uses no wallet seed, spending key, or
-Iranian payment service.
+Configure `PCT_TRONGRID_API_KEY` as a secret on the private
+`researchvault-pct-workflow` Worker. Checkout uses the public TRON receiving
+address in the international Pages payment configuration. The customer
+includes the one-time invoice memo in the transfer and submits its transaction
+ID. The memo is a random reference and contains no case or customer details.
 
 Run `node pct-workflow/scripts/release.mjs enable-usdt ../rv-pct-private-release`
 from the authenticated deployment computer. This verifies the existing private
 release, applies the additive schema and enables checkout while enrollment
-remains closed. Deploy the bot and international Pages versions for their matching
-controls. Replenish the pool by including existing and additional addresses in
-the secret. Allocated addresses are never issued to another invoice.
+remains closed. Deploy the international Pages version for its matching
+controls. Previously assigned per-invoice receiving addresses remain valid.
 
-Checkout verifies exact confirmed USDT transfers on TRON and settles them
+Checkout verifies the exact invoice memo and confirmed USDT transfer on TRON and settles it
 through the existing case and notification transaction. An open checkout is
 checked from the browser and by the bot's private scheduled queue. A missing
-address or an ambiguous transfer remains unresolved and does not advance the
+memo or an ambiguous transfer remains unresolved and does not advance the
 case. Use synthetic data and a mocked TRON response for development.

@@ -221,7 +221,7 @@ function activeWorkerSecrets(run, conf, expected) {
     wipeEnabled:get('PCT_WIPE_ENABLED','plain_text')?.text==='true',
     responseTimingEnabled:get('PCT_RESPONSE_TIMING_ENABLED','plain_text')?.text==='true',
     usdtEnabled:get('PCT_USDT_ENABLED','plain_text')?.text==='true',
-    hasUsdtSettings:['PCT_USDT_ADDRESSES','PCT_TRONGRID_API_KEY'].every(name=>get(name,'secret_text')),
+    hasUsdtSettings:Boolean(get('PCT_TRONGRID_API_KEY','secret_text')),
   };
 }
 
@@ -292,7 +292,7 @@ export async function enableUsdt(directory,{run=command}={}) {
   check(current.hasAdmin && current.responseTimingEnabled,
     'Connect the PCT administrator and enable response timing first.');
   check(current.hasUsdtSettings,
-    'Set PCT_USDT_ADDRESSES and PCT_TRONGRID_API_KEY on the private PCT Worker first.');
+    'Set PCT_TRONGRID_API_KEY on the private PCT Worker first.');
   check(run(['d1','migrations','apply','PCT_DB','--remote'],conf).status===0,
     'Could not apply the USDT checkout schema to the dedicated PCT database.');
   const deploy=['deploy','--keep-vars','--var','PCT_RESPONSE_TIMING_ENABLED:true','--var','PCT_USDT_ENABLED:true'];

@@ -12,7 +12,7 @@ import { sha256Hex } from '../../patent-api/src/security.js';
 import { deliverPctNotices } from '../src/notifications.js';
 import { initialState, quoteBreakdown } from '../src/state.js';
 import { caseById, createCase } from '../src/repository.js';
-import { openCheckout, reconcileCheckout, tronAddressHex } from '../src/usdt.js';
+import { checkCheckout, openCheckout, reconcileCheckout, tronAddressHex } from '../src/usdt.js';
 import { confirmWipe, lockCaseUpload, unlockCaseUpload } from '../src/wipe.js';
 import { claimNotification, acknowledgeNotification } from '../src/repository.js';
 import { UPDATE_WINDOW, NOTICE_LEAD } from '../src/team-updates.js';
@@ -116,6 +116,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0005_team_updates.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0006_usdt_checkouts.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0007_admin_publications.sql'),'utf8'));
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0008_usdt_payment_references.sql'),'utf8'));
   const identityDb=await mf.getD1Database('DB','auth');
   await schema(identityDb,authSql);
   const files=await mf.getR2Bucket('PCT_STORE','pct');
@@ -482,7 +483,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   assert.ok(await files.get(retained));
   assert.ok(await files.get(nearPrefix));
   assert.ok(await files.get(vars.PCT_UNDERTAKING_KEY));
-  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes','pct_team_updates','pct_usdt_checkouts','pct_admin_publications']) {
+  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes','pct_team_updates','pct_usdt_checkouts','pct_usdt_reference_checkouts','pct_admin_publications']) {
     assert.equal((await db.prepare(`SELECT count(*) AS n FROM ${table} WHERE case_id=?`).bind(target).first()).n,0,table);
   }
   assert.equal(await db.prepare('SELECT id FROM pct_cases WHERE id=?').bind(target).first(),null);
@@ -513,60 +514,58 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   assert.equal(await acknowledgeNotification(db,retry.id,retry.lease),true);
   assert.notEqual((await claimNotification(db,{timing:true,at:near+100}))?.type,'team_update_reminder');
 
-  // Mainnet-format synthetic addresses with a transport that never makes a network request.
-  const makeAddress=async byte=>{
-    const bytes=Uint8Array.from([65,...Array(20).fill(byte)]);
-    const digest=await crypto.subtle.digest('SHA-256',await crypto.subtle.digest('SHA-256',bytes));
-    const hex=Buffer.concat([Buffer.from(bytes),Buffer.from(digest).subarray(0,4)]).toString('hex');
-    const base58='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    let number=BigInt('0x'+hex), result='';
-    while (number) {result=base58[Number(number%58n)]+result;number/=58n;}
-    return result;
-  };
-  const [address1,address2]=await Promise.all([makeAddress(18),makeAddress(19)]);
-  assert.equal(await tronAddressHex(address1),'12'.repeat(20));
-  const at=Math.floor(Date.now()/1000), env={PCT_DB:db,PCT_USDT_ENABLED:'true',
-    PCT_USDT_ADDRESSES:address1+','+address2,PCT_TRONGRID_API_KEY:'test-only'};
-  const openCase=(i)=>createCase(db,'usdt-buyer-'+i,initialState({title:'Synthetic',name:'Synthetic',
+  // Two synthetic invoices share the configured destination and use different memos.
+  // The mocked transport never queries the real wallet or sends any funds.
+  const at=Math.floor(Date.now()/1000), env={PCT_DB:db,PCT_USDT_ENABLED:'true',PCT_TRONGRID_API_KEY:'test-only'};
+  const openCase=i=>createCase(db,'usdt-buyer-'+i,initialState({title:'Synthetic',name:'Synthetic',
     country:'Canada',undertaking:{accepted_at:at},at}),'synthetic-checkout-'+i);
-  const a=await openCase(1), b=await openCase(2), c=await openCase(3);
-  const [a1,a2]=await Promise.all([openCheckout(env,a,'consultation',at),openCheckout(env,a,'consultation',at)]);
+  const [a,b,allocated]=await Promise.all([openCase(1),openCase(2),openCase(3)]);
+  const [a1,a2,b1]=await Promise.all([
+    openCheckout(env,a,'consultation',at),openCheckout(env,a,'consultation',at),openCheckout(env,b,'consultation',at),
+  ]);
   assert.deepEqual(a1,a2);
-  assert.equal(a1.address,address1);
-  assert.equal((await openCheckout(env,b,'consultation',at)).address,address2);
-  await assert.rejects(openCheckout(env,c,'consultation',at),/No USDT checkout address is available/);
-  const id='f'.repeat(64), usdt='TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
-  const transfer=(value,receiptSuccess)=>async (url,init)=>{
+  assert.equal(a1.address,b1.address);
+  assert.match(a1.reference,/^RVPCT-[a-f0-9]{24}$/);
+  assert.notEqual(a1.reference,b1.reference);
+  const recipient=await tronAddressHex(a1.address);
+  assert.ok(recipient);
+  const badAmount='e'.repeat(64), correct='f'.repeat(64), failed='d'.repeat(64);
+  const transfer=({txid,reference,value='111000000',confirmed=true,success=true})=>async (url,init)=>{
     const u=new URL(url);
     assert.equal(u.origin,'https://api.trongrid.io');
     assert.equal(init.headers['TRON-PRO-API-KEY'],'test-only');
-    if (u.pathname.startsWith('/v1/')) {
-      assert.equal(u.pathname,`/v1/accounts/${address1}/transactions/trc20`);
-      assert.equal(u.searchParams.get('only_confirmed'),'true');
-      return Response.json({success:true,data:[{type:'Transfer',token_info:{address:usdt},to:address1,
-        block_timestamp:at*1000,transaction_id:id,value}]});
-    }
+    assert.deepEqual(JSON.parse(init.body),{value:txid});
+    if (u.pathname==='/walletsolidity/gettransactionbyid') return Response.json(confirmed ?
+      {txID:txid,raw_data:{data:Buffer.from(reference).toString('hex')}} : {});
     assert.equal(u.pathname,'/walletsolidity/gettransactioninfobyid');
-    assert.deepEqual(JSON.parse(init.body),{value:id});
-    return Response.json({id,blockNumber:1,blockTimeStamp:at*1000,receipt:{result:receiptSuccess?'SUCCESS':'REVERT'},
+    return Response.json({id:txid,blockNumber:1,blockTimeStamp:at*1000,receipt:{result:success?'SUCCESS':'REVERT'},
       log:[{address:'a614f803b6fd780986a42c78ec9c7f77e6ded13c',
         topics:['ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef','0'.repeat(64),
-          '12'.repeat(20).padStart(64,'0')],data:BigInt(value).toString(16).padStart(64,'0')}]});
+          recipient.padStart(64,'0')],data:BigInt(value).toString(16).padStart(64,'0')}]});
   };
-  const inspect=(clock,value,success)=>reconcileCheckout(env,{caseId:a.id,key:'consultation',at:clock,fetcher:transfer(value,success)});
-  await inspect(at,'110000000',true);
-  assert.equal((await caseById(db,a.id)).stage,'consultation_payment');
-  assert.equal((await openCheckout(env,a,'consultation',at)).status,'review_required');
-  await inspect(at+50,'111000000',false);
+  const check=(row,txid,clock,mock)=>checkCheckout(env,row,'consultation',txid,{at:clock,fetcher:transfer(mock)});
+  const right={txid:correct,reference:a1.reference};
+  assert.equal((await check(b,correct,at,right)).status,'reference_mismatch');
+  assert.equal((await caseById(db,b.id)).stage,'consultation_payment');
+  assert.equal((await check(a,badAmount,at,{txid:badAmount,reference:a1.reference,value:'110000000'})).status,'review_required');
+  assert.equal((await check(a,failed,at+50,{txid:failed,reference:a1.reference,success:false})).status,'review_required');
+  assert.equal((await check(a,correct,at+100,{...right,confirmed:false})).status,'checking_transfer');
   assert.equal((await caseById(db,a.id)).state.invoices.consultation.status,'issued');
-  await Promise.all([inspect(at+100,'111000000',true),inspect(at+100,'111000000',true)]);
+  const retryTransfer=()=>reconcileCheckout(env,{caseId:a.id,key:'consultation',at:at+150,fetcher:transfer(right)});
+  await Promise.all([retryTransfer(),retryTransfer()]);
   const paid=await caseById(db,a.id);
-  assert.equal(paid.state.invoices.consultation.paid_at,at+100);
+  assert.equal(paid.state.invoices.consultation.paid_at,at+150);
   assert.equal(paid.stage,'consultation_requested');
-  assert.equal(paid.state.team_updates[0].due_at,at+100+UPDATE_WINDOW);
+  assert.equal(paid.state.team_updates[0].due_at,at+150+UPDATE_WINDOW);
   const events=(await db.prepare('SELECT event_type,notify FROM pct_events WHERE case_id=? ORDER BY revision')
     .bind(a.id).all()).results;
   assert.deepEqual(events.map(e=>[e.event_type,e.notify]),
     [['case_created',0],['usdt_payment_review',1],['consultation_requested',1]]);
 
+  // An invoice with an already assigned dedicated address retains its checkout.
+  const assigned='TJmmqjb1DK9TTZbQXzRQ2AuA94z4gKAPFh';
+  await db.prepare(`INSERT INTO pct_usdt_checkouts(case_id,milestone,address,amount_cents,started_at,next_check_at)
+    VALUES(?,?,?,?,?,?)`).bind(allocated.id,'consultation',assigned,11100,at,at).run();
+  assert.deepEqual(await openCheckout(env,allocated,'consultation',at),
+    {address:assigned,amount_cents:11100,network:'TRON (TRC20)',status:'awaiting_transfer'});
 });
