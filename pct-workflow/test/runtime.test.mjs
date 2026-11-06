@@ -10,7 +10,9 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { putObject } from '../src/files.js';
 import { sha256Hex } from '../../patent-api/src/security.js';
 import { deliverPctNotices } from '../src/notifications.js';
-import { quoteBreakdown } from '../src/state.js';
+import { initialState, quoteBreakdown } from '../src/state.js';
+import { caseById, createCase } from '../src/repository.js';
+import { openCheckout, reconcileCheckout, tronAddressHex } from '../src/usdt.js';
 import { confirmWipe, lockCaseUpload, unlockCaseUpload } from '../src/wipe.js';
 import { claimNotification, acknowledgeNotification } from '../src/repository.js';
 import { UPDATE_WINDOW, NOTICE_LEAD } from '../src/team-updates.js';
@@ -112,6 +114,8 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0003_filing_consent_evidence.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0004_case_wipe.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0005_team_updates.sql'),'utf8'));
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0006_usdt_checkouts.sql'),'utf8'));
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0007_admin_publications.sql'),'utf8'));
   const identityDb=await mf.getD1Database('DB','auth');
   await schema(identityDb,authSql);
   const files=await mf.getR2Bucket('PCT_STORE','pct');
@@ -297,7 +301,24 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     await bot('action',{case_id:id,action:'start_drafting'});
     const v1=await file('pct_draft','draft-v1.docx',docx);
     await req(C+'/documents/'+v1.id,{cookie:client,expected:404});
-    assert.equal((await act('publish_draft',{document_id:v1.id,reviewed:true})).drafts[0].version,'1.0');
+    if (checkFiles) {
+      const before=await bot('case',{case_id:id});
+      const draft={action:'publish_draft',document_id:v1.id,reviewed:true,revision:before.revision};
+      const focused=await bot('link',{case_id:id,task:'stage'});
+      assert.match(focused.url,/\?task=stage#[a-f0-9]{48}$/);
+      await post(M+'/prepare',draft,admin,{grant:g});
+      const first=(await bot('case',{case_id:id})).prepared_publication;
+      assert.equal(first.action,'publish_draft');
+      await post(M+'/prepare',{...draft,note:'Reviewed final wording.'},admin,{grant:g});
+      const final=(await bot('case',{case_id:id})).prepared_publication;
+      await bot('action',{case_id:id,action:'publish_prepared',revision:before.revision,nonce:first.nonce},ACTOR,409);
+      assert.equal((await read()).stage,'pct_drafting');
+      await bot('action',{case_id:id,action:'publish_prepared',revision:before.revision,nonce:final.nonce});
+      assert.equal((await read()).drafts[0].note,'Reviewed final wording.');
+    } else {
+      await act('publish_draft',{document_id:v1.id,reviewed:true});
+    }
+    assert.equal((await read()).drafts[0].version,'1.0');
     const feedback=await upload(C+'/documents',client,'pct_feedback','v1-comments.docx',docx);
     assert.equal((await customer('draft_feedback',{draft_id:v1.id,feedback_id:feedback.id,note:'Please improve claim 2.'})).stage,'pct_draft_revision');
     const meeting=await customer('request_meeting',{note:'Review the claim with us.'});
@@ -461,7 +482,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   assert.ok(await files.get(retained));
   assert.ok(await files.get(nearPrefix));
   assert.ok(await files.get(vars.PCT_UNDERTAKING_KEY));
-  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes','pct_team_updates']) {
+  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes','pct_team_updates','pct_usdt_checkouts','pct_admin_publications']) {
     assert.equal((await db.prepare(`SELECT count(*) AS n FROM ${table} WHERE case_id=?`).bind(target).first()).n,0,table);
   }
   assert.equal(await db.prepare('SELECT id FROM pct_cases WHERE id=?').bind(target).first(),null);
@@ -491,4 +512,61 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   assert.equal(await acknowledgeNotification(db,n.id,n.lease),false);
   assert.equal(await acknowledgeNotification(db,retry.id,retry.lease),true);
   assert.notEqual((await claimNotification(db,{timing:true,at:near+100}))?.type,'team_update_reminder');
+
+  // Mainnet-format synthetic addresses with a transport that never makes a network request.
+  const makeAddress=async byte=>{
+    const bytes=Uint8Array.from([65,...Array(20).fill(byte)]);
+    const digest=await crypto.subtle.digest('SHA-256',await crypto.subtle.digest('SHA-256',bytes));
+    const hex=Buffer.concat([Buffer.from(bytes),Buffer.from(digest).subarray(0,4)]).toString('hex');
+    const base58='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let number=BigInt('0x'+hex), result='';
+    while (number) {result=base58[Number(number%58n)]+result;number/=58n;}
+    return result;
+  };
+  const [address1,address2]=await Promise.all([makeAddress(18),makeAddress(19)]);
+  assert.equal(await tronAddressHex(address1),'12'.repeat(20));
+  const at=Math.floor(Date.now()/1000), env={PCT_DB:db,PCT_USDT_ENABLED:'true',
+    PCT_USDT_ADDRESSES:address1+','+address2,PCT_TRONGRID_API_KEY:'test-only'};
+  const openCase=(i)=>createCase(db,'usdt-buyer-'+i,initialState({title:'Synthetic',name:'Synthetic',
+    country:'Canada',undertaking:{accepted_at:at},at}),'synthetic-checkout-'+i);
+  const a=await openCase(1), b=await openCase(2), c=await openCase(3);
+  const [a1,a2]=await Promise.all([openCheckout(env,a,'consultation',at),openCheckout(env,a,'consultation',at)]);
+  assert.deepEqual(a1,a2);
+  assert.equal(a1.address,address1);
+  assert.equal((await openCheckout(env,b,'consultation',at)).address,address2);
+  await assert.rejects(openCheckout(env,c,'consultation',at),/No USDT checkout address is available/);
+  const id='f'.repeat(64), usdt='TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+  const transfer=(value,receiptSuccess)=>async (url,init)=>{
+    const u=new URL(url);
+    assert.equal(u.origin,'https://api.trongrid.io');
+    assert.equal(init.headers['TRON-PRO-API-KEY'],'test-only');
+    if (u.pathname.startsWith('/v1/')) {
+      assert.equal(u.pathname,`/v1/accounts/${address1}/transactions/trc20`);
+      assert.equal(u.searchParams.get('only_confirmed'),'true');
+      return Response.json({success:true,data:[{type:'Transfer',token_info:{address:usdt},to:address1,
+        block_timestamp:at*1000,transaction_id:id,value}]});
+    }
+    assert.equal(u.pathname,'/walletsolidity/gettransactioninfobyid');
+    assert.deepEqual(JSON.parse(init.body),{value:id});
+    return Response.json({id,blockNumber:1,blockTimeStamp:at*1000,receipt:{result:receiptSuccess?'SUCCESS':'REVERT'},
+      log:[{address:'a614f803b6fd780986a42c78ec9c7f77e6ded13c',
+        topics:['ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef','0'.repeat(64),
+          '12'.repeat(20).padStart(64,'0')],data:BigInt(value).toString(16).padStart(64,'0')}]});
+  };
+  const inspect=(clock,value,success)=>reconcileCheckout(env,{caseId:a.id,key:'consultation',at:clock,fetcher:transfer(value,success)});
+  await inspect(at,'110000000',true);
+  assert.equal((await caseById(db,a.id)).stage,'consultation_payment');
+  assert.equal((await openCheckout(env,a,'consultation',at)).status,'review_required');
+  await inspect(at+50,'111000000',false);
+  assert.equal((await caseById(db,a.id)).state.invoices.consultation.status,'issued');
+  await Promise.all([inspect(at+100,'111000000',true),inspect(at+100,'111000000',true)]);
+  const paid=await caseById(db,a.id);
+  assert.equal(paid.state.invoices.consultation.paid_at,at+100);
+  assert.equal(paid.stage,'consultation_requested');
+  assert.equal(paid.state.team_updates[0].due_at,at+100+UPDATE_WINDOW);
+  const events=(await db.prepare('SELECT event_type,notify FROM pct_events WHERE case_id=? ORDER BY revision')
+    .bind(a.id).all()).results;
+  assert.deepEqual(events.map(e=>[e.event_type,e.notify]),
+    [['case_created',0],['usdt_payment_review',1],['consultation_requested',1]]);
+
 });

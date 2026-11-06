@@ -220,6 +220,8 @@ function activeWorkerSecrets(run, conf, expected) {
     hasAdmin:Boolean(get('PCT_TELEGRAM_ADMIN_IDS','secret_text')),
     wipeEnabled:get('PCT_WIPE_ENABLED','plain_text')?.text==='true',
     responseTimingEnabled:get('PCT_RESPONSE_TIMING_ENABLED','plain_text')?.text==='true',
+    usdtEnabled:get('PCT_USDT_ENABLED','plain_text')?.text==='true',
+    hasUsdtSettings:['PCT_USDT_ADDRESSES','PCT_TRONGRID_API_KEY'].every(name=>get(name,'secret_text')),
   };
 }
 
@@ -284,6 +286,24 @@ export async function enableResponseTiming(directory,{run=command}={}) {
   console.log('PCT response timing is enabled. Enrollment remains disabled.');
 }
 
+export async function enableUsdt(directory,{run=command}={}) {
+  const {conf,expected}=await installedPrivateConfig(directory);
+  const current=activeWorkerSecrets(run,conf,expected);
+  check(current.hasAdmin && current.responseTimingEnabled,
+    'Connect the PCT administrator and enable response timing first.');
+  check(current.hasUsdtSettings,
+    'Set PCT_USDT_ADDRESSES and PCT_TRONGRID_API_KEY on the private PCT Worker first.');
+  check(run(['d1','migrations','apply','PCT_DB','--remote'],conf).status===0,
+    'Could not apply the USDT checkout schema to the dedicated PCT database.');
+  const deploy=['deploy','--keep-vars','--var','PCT_RESPONSE_TIMING_ENABLED:true','--var','PCT_USDT_ENABLED:true'];
+  if (current.wipeEnabled) deploy.push('--var','PCT_WIPE_ENABLED:true');
+  check(run(deploy,conf).status===0,'Could not deploy the private USDT checkout.');
+  const deployed=activeWorkerSecrets(run,conf,expected);
+  check(deployed.usdtEnabled && deployed.hasUsdtSettings && deployed.hasAdmin && deployed.responseTimingEnabled &&
+    (!current.wipeEnabled || deployed.wipeEnabled),'The active USDT and PCT settings could not be verified.');
+  console.log('PCT USDT checkout is configured. Enrollment remains disabled.');
+}
+
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode, ...args] = process.argv.slice(2);
   try {
@@ -295,6 +315,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
     });
     else if (mode === 'enable-wipe' && args.length === 1) await enableWipe(args[0]);
     else if (mode === 'enable-response-timing' && args.length === 1) await enableResponseTiming(args[0]);
-    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install, connect-admin, enable-wipe or enable-response-timing with PRIVATE_DIRECTORY.');
+    else if (mode === 'enable-usdt' && args.length === 1) await enableUsdt(args[0]);
+    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install, connect-admin, enable-wipe, enable-response-timing or enable-usdt with PRIVATE_DIRECTORY.');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

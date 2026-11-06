@@ -8,8 +8,11 @@ export function pendingTeamUpdates(s) {
   const work = [];
   const add = (kind, opened, identity = '', renew = false) => {
     if (!Number.isSafeInteger(opened) || opened <= 0) return;
-    const at = renew && Number.isSafeInteger(s.team_update_at) ? Math.max(opened, s.team_update_at) : opened;
-    work.push({ key: `${kind}:${identity}:${opened}:${at}`, kind, started_at: at, due_at: at + UPDATE_WINDOW });
+    const taskKey = `${kind}:${identity}:${opened}`;
+    const progressAt = renew && Number.isSafeInteger(s.team_update_at) ? Math.max(opened, s.team_update_at) : opened;
+    const extensionAt = s.team_update_extensions?.[taskKey];
+    const at = Number.isSafeInteger(extensionAt) ? Math.max(progressAt, extensionAt) : progressAt;
+    work.push({ key: `${taskKey}:${at}`, task_key: taskKey, kind, started_at: at, due_at: at + UPDATE_WINDOW });
   };
   const draft = s.drafts?.at(-1);
   switch (s.stage) {
@@ -42,4 +45,9 @@ export function pendingTeamUpdates(s) {
   return work.sort((a,b) => a.due_at - b.due_at || a.key.localeCompare(b.key));
 }
 
-export const clientTeamUpdates = s => pendingTeamUpdates(s).map(({key, ...item}) => item);
+export const clientTeamUpdates = s => pendingTeamUpdates(s).map(({key, task_key, ...item}) => item);
+
+export function applyTeamUpdateExtension(s, task, at) {
+  s.team_update_extensions = { ...s.team_update_extensions, [task.task_key]: at };
+  return at + UPDATE_WINDOW;
+}

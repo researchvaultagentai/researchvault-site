@@ -5,14 +5,20 @@ import * as F from './files.js';
 import * as A from './agreement.js';
 import { accountForEmail, authRoute, localSession } from './accounts.js';
 import { deliverPctNotices, notificationTarget } from './notifications.js';
-import { clientTeamUpdates } from './team-updates.js';
+import { applyTeamUpdateExtension, clientTeamUpdates, pendingTeamUpdates } from './team-updates.js';
 import * as W from './wipe.js';
+import { checkCheckout, openCheckout, reconcileCheckout, usdtEnabled } from './usdt.js';
 
 const PRODUCTION_ORIGIN = 'https://researchvault-patent.pages.dev';
 const INTERNAL = 'https://pct-internal.invalid';
 const ID = /^pct_[a-f0-9]{24}$/;
 const DOC_ID = /^doc_[a-f0-9]{32}$/;
-const ADMIN_ACTIONS = new Set(['authorize_report', 'decide_idea', 'quote', 'waive_completion', 'start_drafting', 'start_submission']);
+const ADMIN_ACTIONS = new Set(['authorize_report', 'decide_idea', 'quote', 'waive_completion', 'start_drafting', 'start_submission', 'extend_team_update', 'post_team_update']);
+const PUBLICATIONS = {
+  report_work:'publish_report', agreement_review:'review_agreement', pct_drafting:'publish_draft',
+  pct_draft_revision:'publish_draft', pct_finalizing:'package_ready', pct_submitting:'filed',
+  isa_wait:'isa_received', pct_response:'response_done', publication_wait:'complete',
+};
 const BOT_READ_ONLY = new Set(['/internal/pct/list','/internal/pct/case','/internal/pct/log']);
 const BOT_WIPE = new Set(['prepare','confirm','cancel','continue'].map(step=>'/internal/pct/wipe-'+step));
 const APP_NUMBER = /^PCT\/[A-Z]{2}\d{4}\/\d{6}$/;
@@ -121,7 +127,8 @@ async function caseView(env, row, admin = false) {
     ? await F.readPassword(env, s.documents.find(d => d.id === s.report.pdf_id)) : null;
   const showFinal = S.packageReleased(s);
   return {
-    ...caseSummary(row), revision: row.revision, invoices: Object.values(s.invoices).map(i => invoiceView(i, admin)),
+    ...caseSummary(row), revision: row.revision, usdt_checkout: usdtEnabled(env),
+    invoices: Object.values(s.invoices).map(i => invoiceView(i, admin)),
     documents: s.documents.filter(d => F.mayDownload(s, d, admin)).map(F.documentView),
     meeting: s.meeting, report: s.report ? {
       pdf_id: s.report.pdf_id, ...(password ? { password, word_id: s.report.word_id, candidates: s.report.candidates } : {}),
@@ -248,6 +255,8 @@ async function clientAction(req, env, row, user) {
   let topic = b.action, detail = {}, notify = false;
   switch (b.action) {
     case 'submit_receipt':
+      S.ensure(!usdtEnabled(env) || s.invoices[b.milestone]?.receipt,
+        'Open the USDT checkout for this invoice.',409,'checkout_required');
       S.recordReceipt(s, b.milestone, receiptEvidence(b));
       detail = { milestone: b.milestone };
       notify = true;
@@ -309,7 +318,7 @@ async function clientAction(req, env, row, user) {
   }
 }
 
-async function adminAction(env, row, actor, b, fromBot = false) {
+async function adminAction(env, row, actor, b, fromBot = false, validateOnly = false, publicationProof = null) {
   const s = row.state, at = nowSec();
   let event = b.action, details = {}, notify = false;
   if (fromBot) S.ensure(ADMIN_ACTIONS.has(b.action), 'Use the private case console for this action.', 403, 'forbidden');
@@ -383,8 +392,20 @@ async function adminAction(env, row, actor, b, fromBot = false) {
     case 'ack_meeting':
       S.acknowledgeMeeting(s,b.meeting_id,clean(b.note,1000) || 'The team has received your meeting request.',at);
       event='online_meeting_acknowledged';break;
+    case 'extend_team_update': {
+      S.ensure(timingEnabled(env), 'Team updates are not enabled yet.', 503, 'timing_unavailable');
+      S.ensure(b.revision === row.revision, 'The case changed. Open it again before extending a deadline.', 409, 'case_changed');
+      const tasks = pendingTeamUpdates(s);
+      const task = Number.isSafeInteger(b.task_index) && b.task_index >= 0 ? tasks[b.task_index] : null;
+      S.ensure(task && at > task.started_at, 'There is no matching team deadline to extend. Open the case again.', 409, 'deadline_unavailable');
+      const due = applyTeamUpdateExtension(s, task, at);
+      details = { kind: task.kind, previous_due_at: task.due_at, due_at: due };
+      event = 'team_update_extended';
+      break;
+    }
     case 'post_team_update':
       S.ensure(timingEnabled(env), 'Team updates are not enabled yet.', 503, 'timing_unavailable');
+      if (fromBot) S.ensure(b.revision === row.revision, 'The case changed. Open it again before posting the update.', 409, 'case_changed');
       S.ensure(!['declined','completed','closed_by_agreement'].includes(s.stage) && s.messages.length < 200,
         'This case cannot receive another update.');
       s.messages.push({body:bounded(b.body,'Case update',2,2000),actor:'team',at});
@@ -452,7 +473,8 @@ async function adminAction(env, row, actor, b, fromBot = false) {
       break;
     default: fail('Unknown administrator action.', 404, 'not_found');
   }
-  try { return await D.save(env.PCT_DB, row, actor, event, details, notify); }
+  if (validateOnly) return;
+  try { return await D.save(env.PCT_DB, row, actor, event, details, notify, publicationProof); }
   catch (e) {
     if (/UNIQUE constraint failed: pct_verified_payment_refs|pct_payment_already_consumed/.test(e?.message || '')) {
       fail('This transaction already settled another invoice.', 409, 'duplicate_payment');
@@ -475,18 +497,31 @@ async function botRoute(req, env, url) {
   const offset = Number.isSafeInteger(b.offset) ? Math.min(2_147_483_647, Math.max(0,b.offset)) : 0;
   switch (url.pathname) {
     case '/internal/pct/list':
-      return json({ ...await D.adminList(db, offset), enrollment_open: enrollmentOpen });
+      return json({ ...await D.adminList(db, offset), enrollment_open: enrollmentOpen,
+        ...(enrollmentOpen && timingEnabled(env) ? {show_tasks:true} : {}) });
+    case '/internal/pct/tasks':
+      S.ensure(timingEnabled(env),'Team update timing is unavailable.',503,'timing_unavailable');
+      return json(await D.adminTasks(db,offset));
     case '/internal/pct/log':
       return json(await D.caseLog(db,b.case_id,offset));
     case '/internal/pct/case': {
       const c = await D.caseById(db, b.case_id, null, {includeWiping:true});
+      const publication=enrollmentOpen && PUBLICATIONS[c.stage] ? await D.preparedPublication(db,c,actor) : null;
       return json({ id: c.id, public_ref: c.public_ref, stage: c.stage, revision: c.revision,
+        ...(publication ? {prepared_publication:{action:publication.body.action,nonce:publication.nonce}} : {}),
         team_idea: c.state.idea?.source === 'team', enrollment_open: enrollmentOpen,
+        ...(timingEnabled(env) && enrollmentOpen ? { team_updates: clientTeamUpdates(c.state), server_now: nowSec() } : {}),
         can_waive_completion: c.stage!=='wipe_pending' && enrollmentOpen && S.canWaiveCompletion(c.state),
         ...(wipeEnabled ? {can_wipe:c.stage!=='wipe_pending',can_continue_wipe:c.stage==='wipe_pending'} : {}) });
     }
-    case '/internal/pct/link':
-      return json({ url: await D.newAdminLink(db, b.case_id, actor, env.PCT_ORIGIN) });
+    case '/internal/pct/link': {
+      const focused=b.task==='stage';
+      if (focused) {
+        const c=await D.caseById(db,b.case_id);
+        S.ensure(Object.hasOwn(PUBLICATIONS,c.stage),'No publication is available at this stage.',409,'invalid_stage');
+      }
+      return json({ url: await D.newAdminLink(db, b.case_id, actor, env.PCT_ORIGIN,focused) });
+    }
     case '/internal/pct/quote-preview': {
       const c = await D.caseById(db, b.case_id);
       S.ensure(['awaiting_quote','quote_ready'].includes(c.stage), 'This case is not open for a PCT quote.');
@@ -494,7 +529,16 @@ async function botRoute(req, env, url) {
     }
     case '/internal/pct/action': {
       const c = await D.caseById(db, b.case_id);
-      const changed = await adminAction(env, c, 'tg:' + actor, b, true);
+      let changed;
+      if (b.action==='publish_prepared') {
+        S.ensure(b.revision===c.revision,'The case changed. Open it again before publishing.',409,'case_changed');
+        const publication=await D.preparedPublication(db,c,actor);
+        S.ensure(publication && publication.nonce===b.nonce && publication.body.action===PUBLICATIONS[c.stage],
+          'No prepared update is available. Open the private task again.',409,'publication_unavailable');
+        changed=await adminAction(env,c,'tg:'+actor,publication.body,false,false,{actor,nonce:b.nonce});
+      } else {
+        changed=await adminAction(env,c,'tg:'+actor,b,true);
+      }
       return json({ ok: true, public_ref: changed.public_ref, stage: changed.stage });
     }
     case '/internal/pct/notification':
@@ -521,7 +565,7 @@ async function route(req, env) {
   S.ensure(method === 'GET' || (method === 'POST' && req.headers.get('origin') === url.origin),
     'Same-origin request required.', 403, 'forbidden');
   if (path === '/api/pct/status' && method === 'GET') return json({ enabled: configured(env), ...(testMode(env) ? { test_mode: true } : {}) });
-  S.ensure(configured(env), 'The new PCT workflow is not available yet.', 503, 'workflow_unavailable');
+  S.ensure(configured(env), 'The PCT portal is not accepting applications yet.', 503, 'workflow_unavailable');
 
   if (path.startsWith('/api/pct/auth/')) return authRoute(req,env,path,{input,upstream,account});
 
@@ -534,7 +578,7 @@ async function route(req, env) {
     }
     const match = /^\/api\/pct\/admin\/cases\/([^/]+)(?:\/(.*))?$/.exec(path);
     S.ensure(match && ID.test(match[1]), 'Not found.', 404, 'not_found');
-    await D.requireAdminGrant(db, req.headers.get('x-pct-admin-link'), user.id, match[1]);
+    const grant=await D.requireAdminGrant(db, req.headers.get('x-pct-admin-link'), user.id, match[1]);
     const row = await D.caseById(db, match[1]);
     if (!match[2] && method === 'GET') return json(await caseView(env, row, true));
     if (match[2] === 'agreement' && method === 'GET') {
@@ -545,6 +589,15 @@ async function route(req, env) {
       const b = await input(req);
       S.ensure(['awaiting_quote','quote_ready'].includes(row.stage), 'This case is not open for a PCT quote.');
       return json({ ...S.quoteBreakdown(b.total_cents), revision: row.revision });
+    }
+    if (match[2]==='prepare' && method==='POST') {
+      const b=await input(req);
+      S.ensure(PUBLICATIONS[row.stage] && b.action===PUBLICATIONS[row.stage],
+        'This action cannot be prepared for the current stage.',409,'invalid_stage');
+      S.ensure(b.revision===row.revision,'The case changed. Refresh it and try again.',409,'case_changed');
+      await adminAction(env,{...row,state:structuredClone(row.state)},user.id,b,false,true);
+      await D.stagePublication(db,row,grant.telegram_actor,b);
+      return json({ok:true});
     }
     if (match[2] === 'action' && method === 'POST') {
       const b = await input(req);
@@ -599,6 +652,11 @@ async function route(req, env) {
     await D.markClientEventsSeen(db,row,(await input(req)).revision);
     return json({ok:true});
   }
+  if (method==='POST' && ['checkout','checkout/check'].includes(action)) {
+    const {milestone}=await input(req);
+    S.ensure(typeof milestone==='string', 'Invoice not found.',404,'not_found');
+    return json(await (action==='checkout' ? openCheckout(env,row,milestone) : checkCheckout(env,row,milestone)));
+  }
   if (action === 'action' && method === 'POST') return json(await caseView(env, await clientAction(req, env, row, user)));
   if (action === 'documents' && method === 'POST') {
     return saveCaseUpload(req,env,row,user.id,false);
@@ -647,7 +705,12 @@ export default {
   async fetch(req, env, ctx) {
     try {
       const response = await route(req, env);
-      if (response.ok && req.method==='POST' && /\/(?:action|notification-ack)$/.test(new URL(req.url).pathname) &&
+      const path=new URL(req.url).pathname;
+      if (response.ok && path==='/internal/pct/notification' && ctx?.waitUntil && usdtEnabled(env)) {
+        // The private bot already polls this authenticated queue on its schedule.
+        ctx.waitUntil(reconcileCheckout(env).catch(()=>console.warn('pct_usdt_retry_pending')));
+      }
+      if (response.ok && req.method==='POST' && /\/(?:action|notification-ack|checkout\/check)$/.test(path) &&
           ctx?.waitUntil && notificationTarget(env)) {
         ctx.waitUntil(deliverPctNotices(env).catch(()=>console.warn('pct_notice_retry_pending')));
       }
