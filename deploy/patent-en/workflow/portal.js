@@ -1,14 +1,15 @@
 import { progress } from './progress.js';
+import { caseNotifications, nextAction, teamUpdates, tickClocks } from './case-status.js';
 import { USDT } from '/patent/assets/international-payments-config.js';
 import { $, api, esc, fileForm, login, money, notice, onClick, onForm, post, requestCode, session, set, terms, timeline, when } from './shared.js';
 
 const ROOT = '/api/pct';
 const PATH = '/patent/en/workflow/';
-let user, testMode = false, activeCase = null, dirty = false, checking = false;
+let user, testMode = false, activeCase = null, dirty = false, checking = false, clockSample = null;
 const casePath = id => `${ROOT}/cases/${encodeURIComponent(id)}`;
 const txt = (name, label, extra = '') => `<label>${label}<input name="${name}" required ${extra}></label>`;
 const check = (name, label) => `<label class="check"><input type="checkbox" name="${name}" required> ${label}</label>`;
-const card = (title, html) => `<section class="card"><h3>${title}</h3>${html}</section>`;
+const card = (title, html, id = '') => `<section class="card"${id ? ` id="${id}"` : ''}><h3>${title}</h3>${html}</section>`;
 const sel = (name, label, options) => `<label>${label}<select name="${name}" required>${options.map(([key, value]) =>
   `<option value="${esc(key)}">${esc(value)}</option>`).join('')}</select></label>`;
 const button = label => `<button type="submit">${label}</button>`;
@@ -45,7 +46,7 @@ function renderInvoices(c) {
     ${i.status === 'issued' && testMode ? '<p class="quiet">Test invoice. An administrator will simulate confirmation; no transfer is needed.</p>' : ''}
     ${i.status === 'issued' && !testMode ? `<details><summary>Payment instructions</summary>
       <p>Send exactly <b>${(i.amount_cents/100).toFixed(2)} USDT</b> on ${USDT.network} to <code>${USDT.address}</code>.</p>
-      <form data-receipt="${i.key}">${txt('reference','TRON transaction ID','pattern="[0-9a-fA-F]{64}" maxlength="64"')}${button('Submit receipt for review')}</form></details>` : ''}</section>`).join(''));
+    <form data-receipt="${i.key}">${txt('reference','TRON transaction ID','pattern="[0-9a-fA-F]{64}" maxlength="64"')}${button('Submit receipt for review')}</form></details>` : ''}</section>`).join(''),'case-invoices');
 }
 
 function renderCase(c) {
@@ -72,7 +73,7 @@ function renderCase(c) {
     ${s==='pct_draft_review' ? `<p>Use Word comments or Track Changes. Return the annotated Word file if you want changes, or approve this version for preparation of the final package.</p>
       <div class="grid"><form id="draft-feedback"><label>Word file with comments<input name="file" type="file" accept=".docx" required></label>
         <label>Note to the team (optional)<textarea name="note" maxlength="1000"></textarea></label>${button('Return comments on v'+draft.version)}</form>
-      <form id="draft-approve">${check('confirmed','I approve v'+draft.version+' for final preparation.')}${button('Approve draft v'+draft.version)}</form></div>` : ''}`) : '';
+      <form id="draft-approve">${check('confirmed','I approve v'+draft.version+' for final preparation.')}${button('Approve draft v'+draft.version)}</form></div>` : ''}`,'case-drafts') : '';
   const consent=s==='pct_filing_consent' ? card('Final ePCT filing authorization',`<div class="filing-warning" role="note"><b>This is your final filing authorization.</b><p>Review the final copy. Your confirmation locks this version in the portal and authorizes submission in ePCT. You will no longer be able to request edits to this package here.</p></div>
     <p>${linkDoc(c,c.documents.find(d=>d.id===pkg.review_id),'Open final approval copy')}</p>
     <p id="consent-statement"></p>
@@ -92,17 +93,21 @@ function renderCase(c) {
     ${c.meeting_requests.some(m=>m.status==='requested')?'<p>Your meeting request is with the team.</p>':
       `<form id="request-meeting"><label>What would you like to discuss? (optional)<textarea name="note" maxlength="1000"></textarea></label>${button('Request an online meeting')}</form>`}
     ${c.meeting_requests.filter(m=>m.note_to_client).map(m=>`<p>${esc(m.note_to_client)}</p>`).join('')}`) : '';
-  return `<section class="card"><p class="case-key">${esc(c.public_ref)}</p><h2>${esc(c.title)}</h2>
+  return `<section class="card case-overview"><p class="case-key">${esc(c.public_ref)}</p><h2>${esc(c.title)}</h2>
     <p class="row"><span class="pill">${esc(c.stage_label)}</span>${closed ? '<b>Case settled — balance US$0</b>' : ''}</p>
     <p id="status-update" class="quiet" aria-live="polite">Status updates while this page is open. <button type="button" id="refresh-case" class="secondary">Refresh</button></p>
     ${c.decision ? `<p>${esc(c.decision.note)}</p>` : ''}
     ${c.meeting?.status === 'requested' ? '<p>Your consultation request is recorded. The team will contact you to arrange it.</p>' : ''}
     ${c.filing ? `<p>Official filing: <b>${esc(c.filing.application_number)}</b> · ${esc(c.filing.filed_on)}</p>` : ''}
     ${c.completion ? `<p>Scheduled international publication date: <b>${esc(c.completion.publication_date)}</b>. The official notice is available under Documents.</p>` : ''}</section>
-    ${progress(s)}
+    ${nextAction(c)}${teamUpdates(c)}${caseNotifications(c)}${progress(s)}
     ${progressNote}${revision}
     ${c.filing ? card('Submission confirmed',`<p>The official ePCT receipt is available for ${esc(c.filing.application_number)}.</p>
       <ul>${c.documents.filter(d=>[...c.filing.receipt_ids,...c.filing.document_ids].includes(d.id)).map(d=>`<li>${linkDoc(c,d)}</li>`).join('')}</ul>`) : ''}
+    ${c.isa ? card('International search result',`<p>Recorded ${esc(when(c.isa.received_at))} · ${esc(c.isa.reference)}</p>
+      ${c.isa.deadline && !c.response ? `<p><strong>Official deadline</strong> <time datetime="${esc(c.isa.deadline.date)}">${esc(c.isa.deadline.date)}</time> · ${esc(c.isa.deadline.source)}</p>` : ''}
+      <ul>${[['report_id','International Search Report (ISR)'],['written_opinion_id','Written Opinion (WO-ISA)']]
+        .filter(([key])=>c.isa[key]).map(([key,label])=>`<li>${linkDoc(c,c.documents.find(d=>d.id===c.isa[key]),label)}</li>`).join('')}</ul>`,'case-isa') : ''}
     ${s.startsWith('pct_') || ['isa_wait','publication_wait','completion_due'].includes(s) ? card('Timing and next steps',
       `<p>Our filing package: typically 7–25 days once payment, filing details and prerequisites are complete. An agreed response or amendment: up to 7 days from receipt of the materials needed to act.</p>
       <p class="quiet">Time spent waiting for the ISA or official processing is separate. Filing deadlines follow the official notices for your case.</p>`) : ''}
@@ -116,12 +121,12 @@ function renderCase(c) {
     ${c.filing_consent ? card('Filing authorization recorded',`<p>Signed by ${esc(c.filing_consent.signer)} · ${esc(when(c.filing_consent.signed_at))}</p><a href="${casePath(c.id)}/filing-consent/record">Download authorization record</a>`) : ''}
     ${renderInvoices(c)}
     ${meeting}
-    ${card('Guide to your PCT case','<p>See how draft reviews, payments and final consent work.</p><a href="/patent/en/filing-guide/">Open the filing guide</a>')}
+    ${card('Guide to your PCT case','<p>Watch the portal walkthrough and see how to respond to requests, follow team updates and track official processing.</p><a href="/patent/en/filing-guide/">Open the filing guide</a>')}
     ${upload}
-    ${card('Documents', files ? '<ul>' + files + '</ul>' : '<p class="quiet">No files have been shared yet.</p>')}
-    ${card('Messages', `${c.messages.map(m=>`<p>${esc(m.body)} <small>${esc(when(m.at))}</small></p>`).join('')}
-      <form id="message"><label>Message to the team<textarea name="body" required maxlength="2000"></textarea></label>${button('Send private message')}</form>`)}
-    ${card('Case activity', timeline(c.events))}`;
+    ${card('Documents', files ? '<ul>' + files + '</ul>' : '<p class="quiet">No files have been shared yet.</p>','case-documents')}
+    ${card('Messages', `${c.messages.map(m=>`<div class="case-message" data-from="${m.actor==='team'?'team':'client'}"><small><b>${m.actor==='team'?'ResearchVault team':'You'}</b> · ${esc(when(m.at))}</small><p>${esc(m.body)}</p></div>`).join('')}
+      <form id="message"><label>Message to the team<textarea name="body" required maxlength="2000"></textarea></label>${button('Send private message')}</form>`,'case-messages')}
+    ${card('Case activity', timeline(c.events),'case-activity')}`;
 }
 
 function renderQuote(c) {
@@ -148,7 +153,7 @@ function renderQuote(c) {
       ${check('accepted','I have read the case agreement and accept the exact fees above. My typed name and verified code confirm my signature or, if attached, my signed copy.')}
       <div class="row"><button type="button" id="agreement-code" class="secondary">Send signing code</button></div>
       <div id="agreement-verify" hidden>${txt('code','Verification code','pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" inputmode="numeric" disabled')}
-      ${button('Sign and confirm agreement')}</div></form>` : c.engagement ? '<p>Quote and agreement accepted.</p>' : ''}`);
+      ${button('Sign and confirm agreement')}</div></form>` : c.engagement ? '<p>Quote and agreement accepted.</p>' : ''}`,'case-quote');
 }
 
 function renderFilingIntake() {
@@ -165,6 +170,11 @@ function renderFilingIntake() {
 }
 
 function bindCase(c) {
+  onClick('#mark-case-notices-read', async () => {
+    await post(casePath(c.id)+'/seen',{revision:c.revision});
+    c.client_seen_revision=c.revision;
+    $('#case-notifications')?.remove();
+  });
   onClick('#refresh-case',async()=>{
     if(dirty && !window.confirm('Refresh the case? Any unsubmitted form edits will be lost.'))return;
     await refresh();
@@ -268,12 +278,13 @@ async function refresh() {
   const chosen = list.cases.find(c => c.id === id);
   const c = chosen ? await api(casePath(id)) : null;
   activeCase=c;dirty=false;
+  clockSample=Number.isSafeInteger(c?.server_now)?{server:c.server_now,local:performance.now()}:null;
   const sidebar = `<aside class="card case-list"><h2>My cases</h2><a href="${PATH}?new=1">+ New PCT case</a>
     ${list.cases.map(x => `<a href="${PATH}?case=${x.id}"${x.id === id ? ' aria-current="page"' : ''}>${esc(x.title)}<br><small>${esc(x.public_ref)}</small></a>`).join('')}</aside>`;
   set(`<div class="layout">${sidebar}<div class="stack">${c ? renderCase(c)
     : (!doc.accepted ? '<div id="renew-nda"></div>' : renderNew(doc, list.outstanding_balance))}</div></div>`);
   if (!c && !doc.accepted) return renderUndertaking(doc);
-  if (c) bindCase(c);
+  if (c) { bindCase(c); updateClocks(); }
   const requestId = crypto.randomUUID();
   onForm('#new-case', async data => {
     const result = await post(ROOT + '/cases', { ...Object.fromEntries(data), accepted: true,
@@ -295,7 +306,11 @@ async function checkStatus() {
   checking=true;
   try {
     const next=await api(casePath(current.id)+'/status');
-    if(activeCase!==current || next.revision===current.revision)return;
+    if(activeCase!==current) return;
+    if (next.revision===current.revision) {
+      if (next.client_seen_revision>=current.revision) $('#case-notifications')?.remove();
+      return;
+    }
     if(dirty || $('#app button:disabled:not([hidden])')){
       const note=$('#status-update');
       if(note && note.firstChild)note.firstChild.textContent='A case update is ready. Submit your form or refresh. ';
@@ -304,7 +319,9 @@ async function checkStatus() {
   finally{checking=false;}
 }
 setInterval(checkStatus,12000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkStatus();});
+const updateClocks=()=>{if(!document.hidden && clockSample)tickClocks(clockSample.server+(performance.now()-clockSample.local)/1000);};
+setInterval(updateClocks,15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){updateClocks();checkStatus();}});
 
 async function open(u) {
   user = u;
