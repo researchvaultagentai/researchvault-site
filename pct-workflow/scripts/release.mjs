@@ -242,7 +242,7 @@ export async function connectAdmin(directory, { admin, token, run = command, fet
   check(run(['secret','bulk'], conf, JSON.stringify(updates)).status === 0, 'Could not set the private Telegram administrator.');
   console.log('Configured the private Telegram administrator. Enrollment remains disabled.');
   if (token && !verifiedToken) console.log('Telegram could not verify the supplied token. The notification token was not changed.');
-  if (!verifiedToken && !hasNotificationToken) console.log('Automatic notices need a verified bot token; case monitoring can be checked now.');
+  if (!verifiedToken && !hasNotificationToken) console.log('The existing ResearchVault bot can deliver scheduled notices using its configured token.');
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
