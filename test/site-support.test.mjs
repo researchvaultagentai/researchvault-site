@@ -83,6 +83,30 @@ test('service facts agree on the standalone report, revision rule, video and hum
   assert.match(faqAnswer('documents', 'en'), /must be in English/);
   assert.match(faqAnswer('human', 'en'), /@Ata_Mahmoudinezhad/);
 });
+
+test('PCT chat answers workflow questions without presenting another branch or exposing a private case', () => {
+  const ask = (q, history) => scopedGuideAnswer(q, 'en', 'patent_pct', history);
+  const questions = [
+    ['How do I log in to my account?', /one-time code.*email/i],
+    ['What is the total Stage 1 price?', /111.*555.*445/],
+    ['When can I unlock the report PDF?', /445.*opening password.*editable Word/i],
+    ['How do I upload annotated Word draft v2.0?', /Track Changes.*does not authorize filing/i],
+    ['How do I authorize the final package for ePCT?', /filing instalment.*fresh email code.*WIPO password/i],
+    ['Where can I find the ePCT receipt?', /official filing is confirmed.*cannot verify/i],
+    ['Can you waive the completion fee?', /waiver.*new case/i],
+    ['How long will it take before the ISA?', /7–25 calendar days.*waiting for the ISA/i],
+    ['Can I use TRC20?', /receipt is pending.*does not unlock/i],
+    ['Is national phase entry included?', /outside the base agreement/i],
+  ];
+  for (const [q, expected] of questions) {
+    const reply = ask(q);
+    assert.match(reply, expected, q);
+    assert.equal(supportReplyInScope(reply, 'patent_pct'), true);
+  }
+  assert.match(ask('How much is that?', [{ role: 'user', content: 'What is the PCT quote?' }]), /40%.*60%.*750/);
+  assert.match(ask('What happens next?', [{ role: 'user', content: 'How do I review the draft?' }]), /filing instalment.*fresh email code/);
+  assert.equal(supportReplyInScope('Try patent-api.researchvaultagent.ir', 'patent_pct'), false);
+});
 test('shared runtime loads the isolated widget without changing the patent API origin', () => {
   const runtime = readFileSync(path.join(root, 'patent/assets/patent.js'), 'utf8');
   assert.match(runtime, /script.src = '\/assets\/rv-support-widget.js'/);

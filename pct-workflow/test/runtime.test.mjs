@@ -39,6 +39,17 @@ async function plainPdf() {
   page.drawText('Synthetic fixture only - no official or personal data');
   return pdf.save();
 }
+async function sampleUndertaking() {
+  const pdf = await PDFDocument.create(), page = pdf.addPage();
+  pdf.setTitle('SAMPLE - Confidentiality Undertaking');
+  page.drawText('SAMPLE - NOT FOR CLIENT USE', { x: 52, y: 775, size: 20 });
+  page.drawText('Confidentiality Undertaking - Workflow Test', { x: 52, y: 737, size: 16 });
+  page.drawText('The fictional provider will keep synthetic invention materials private.\n' +
+    'Materials are used only to validate the review and consent flow.\n' +
+    'This sample contains no actual signature, customer or legal commitment.',
+    { x: 52, y: 701, size: 11, lineHeight: 19 });
+  return pdf.save();
+}
 const bundle=async entry=>(await build({entryPoints:[path.join(root,entry)],bundle:true,format:'esm',
   platform:'browser',write:false,logLevel:'error'})).outputFiles[0].text;
 const module=(name,contents,extra={})=>({name,...opts,modules:[{type:'ESModule',path:name+'.mjs',contents}],...extra});
@@ -57,23 +68,26 @@ test('quote boundaries and instalments use cents with the agreed cap', () => {
 });
 
 test('real Workers: isolated email OTP, signed contract, document gates, ISA and final settlement', {timeout:55000}, async t=>{
-  const [workflow,auth,sql,authSql,pdf,locked,empty,video]=await Promise.all([
+  const [workflow,auth,sql,authSql,pdf,ndaPdf,locked,empty,video]=await Promise.all([
     bundle('pct-workflow/src/index.js'),bundle('patent-api/src/index-b2.js'),
     readFile(path.join(root,'pct-workflow/migrations/0001_workflow.sql'),'utf8'),
     readFile(path.join(root,'patent-api/migrations/0001_init.sql'),'utf8'),
-    plainPdf(),bytes('locked-report.pdf'),bytes('permissions-only.pdf'),bytes('sample.mp4'),
+    plainPdf(),sampleUndertaking(),bytes('locked-report.pdf'),bytes('permissions-only.pdf'),bytes('sample.mp4'),
   ]);
   const docx=makeDocx(), mail=new Map();
-  const vars={...testConfig, PCT_UNDERTAKING_KEY:'pct-workflow/legal/test-undertaking.pdf',PCT_UNDERTAKING_VERSION:'TEST-1',
-    PCT_UNDERTAKING_SHA256:await sha256Hex(pdf), PCT_AGREEMENT_KEY:'pct-workflow/legal/test-agreement.docx',
+  const vars={...testConfig, PCT_UNDERTAKING_KEY:'pct-workflow/legal/sample-undertaking.pdf',PCT_UNDERTAKING_VERSION:'SAMPLE-1',
+    PCT_UNDERTAKING_SHA256:await sha256Hex(ndaPdf), PCT_AGREEMENT_KEY:'pct-workflow/legal/test-agreement.docx',
     PCT_AGREEMENT_VERSION:'TEST-PCT-3', PCT_AGREEMENT_SHA256:await sha256Hex(docx)};
   const edge=`export default {fetch(req,env){const p=new URL(req.url).pathname;
     return p.startsWith('/api/pct/')||p.startsWith('/internal/pct/')?env.PCT.fetch(req):env.AUTH.fetch(req)}}`;
+  const prod = {...vars,ENVIRONMENT:'production',PCT_ORIGIN:PROD,PCT_ENABLED:'true',PCT_ISOLATED_TEST:'false'};
   const mf=new Miniflare({workers:[
     module('edge',edge,{serviceBindings:{PCT:'pct',AUTH:'auth'}}),
     module('pct',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},bindings:vars}),
     module('prod-guard',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
-      bindings:{...vars,ENVIRONMENT:'production',PCT_ORIGIN:PROD,PCT_ENABLED:'true'}}),
+      bindings:{...prod,PCT_UNDERTAKING_KEY:'pct-workflow/legal/undertaking.pdf',PCT_UNDERTAKING_VERSION:'RV-NDA-1',
+        PCT_AGREEMENT_KEY:'pct-workflow/legal/agreement.docx',PCT_AGREEMENT_VERSION:'RV-PCT-3'}}),
+    module('prod-sample',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},bindings:prod}),
     module('auth',auth,{d1Databases:{DB:'test-identity'},bindings:{ENVIRONMENT:'test',ADMIN_EMAILS:ADMIN,OTP_PEPPER:'test-otp-pepper',
       SESSION_PEPPER:'test-session-pepper',RESEND_API_KEY:'test-key'},outboundService:async req=>{
         assert.equal(req.url,'https://api.resend.com/emails');
@@ -91,7 +105,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   const identityDb=await mf.getD1Database('DB','auth');
   await schema(identityDb,authSql);
   const files=await mf.getR2Bucket('PCT_STORE','pct');
-  await putObject({PCT_STORE:files,PCT_FILE_KEY:key},vars.PCT_UNDERTAKING_KEY,pdf);
+  await putObject({PCT_STORE:files,PCT_FILE_KEY:key},vars.PCT_UNDERTAKING_KEY,ndaPdf);
   await putObject({PCT_STORE:files,PCT_FILE_KEY:key},vars.PCT_AGREEMENT_KEY,docx);
 
   async function req(p,{method='GET',cookie,body,grant,expected=200,raw=false,origin=ORIGIN,worker}={}){
@@ -134,16 +148,25 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   };
   const status=await req('/api/pct/status');
   assert.deepEqual(status,{enabled:true,test_mode:true});
+  const productionSample=await mf.getWorker('prod-sample');
+  assert.deepEqual(await req('/api/pct/status',{worker:productionSample,origin:PROD}),{enabled:false});
+  await req('/api/pct/undertaking/pdf',{worker:productionSample,origin:PROD,expected:503});
   await req('/api/pct/cases',{expected:401});
+  await req('/api/pct/undertaking/pdf',{expected:401});
   const client=await login(USER), admin=await login(ADMIN), other=await login(OTHER);
   const nda=await req('/api/pct/undertaking',{cookie:client});
+  assert.equal(nda.version,'SAMPLE-1');
+  assert.equal(nda.accepted,false);
   const start = {request_id:'synthetic-case-first-001',title:'Synthetic actuator patent',name:'Test Inventor',country:'Canada',
     order_version:nda.order_version,accepted:true};
   await post('/api/pct/cases',start,client,{expected:403});
   const ndadownload=await req('/api/pct/undertaking/pdf',{cookie:client,raw:true});
-  assert.equal(await sha256Hex(await ndadownload.arrayBuffer()),nda.sha256);
+  const ndaBytes=await ndadownload.arrayBuffer();
+  assert.equal(await sha256Hex(ndaBytes),nda.sha256);
+  assert.equal((await PDFDocument.load(ndaBytes)).getTitle(),'SAMPLE - Confidentiality Undertaking');
   await post('/api/pct/undertaking',{accepted:true,version:nda.version,sha256:'bad'},client,{expected:422});
   await post('/api/pct/undertaking',{accepted:true,version:nda.version,sha256:nda.sha256},client);
+  assert.equal((await req('/api/pct/undertaking',{cookie:client})).accepted,true);
   assert.deepEqual(await req('/api/pct/auth/options'),{google:false,password:true});
   const before=(await req('/api/pct/auth/me',{cookie:client})).user;
   const password='Synthetic-Only-Password-525!';

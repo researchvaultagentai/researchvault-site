@@ -80,7 +80,10 @@ export function mountSupportWidget() {
   if (!scope) return null;
   const links = supportLinks(scope);
   const copy = { ...WORDS[lang], pricing: lang === 'fa' ? 'هزینه‌ها' : 'Fees',
-    tracking: lang === 'fa' ? 'پیگیری درخواست' : 'Track a request', ...SERVICE_WORDS[scope][lang] };
+    tracking: lang === 'fa' ? 'پیگیری درخواست' : 'Track a request',
+    login: lang === 'fa' ? 'ورود به کارتابل' : 'Portal sign-in',
+    drafts: lang === 'fa' ? 'بازبینی پیش‌نویس' : 'Reviewing drafts',
+    filing: lang === 'fa' ? 'تأیید فایلینگ' : 'Authorizing filing', ...SERVICE_WORDS[scope][lang] };
   let config = { ...(window.ResearchVaultSupportConfig || {}) };
   let configuration;
   const configure = () => {
@@ -105,7 +108,7 @@ export function mountSupportWidget() {
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>${CSS}</style><section class="panel" hidden role="dialog" aria-modal="false" aria-labelledby="rv-support-title">
     <header class="top"><span class="mark" aria-hidden="true">r</span><div class="brand"><b id="rv-support-title"></b><small></small></div><button class="close" type="button">×</button></header>
-    <div class="content"><h2 class="intro"></h2><div class="chips"></div><div class="messages" role="log" aria-live="polite" aria-relevant="additions"></div><p class="status" role="status" hidden></p><a class="contact" target="_blank" rel="noopener noreferrer"></a><p class="note"></p></div>
+    <div class="content"><h2 class="intro"></h2><div class="chips"></div><div class="messages" role="log" aria-live="polite" aria-relevant="additions"></div><p class="status" role="status" hidden></p><a class="contact" target="_blank" rel="noopener noreferrer"></a><div><a class="contact case-portal" hidden></a></div><p class="note"></p></div>
     <form class="compose"><div class="input"><textarea rows="1" maxlength="1500"></textarea><button class="send" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m5 12 14-8-4 16-4-6-6-2Z"/><path d="m11 14 8-10"/></svg></button></div><div class="challenge"><slot name="challenge"></slot></div><div class="foot"></div></form>
     </section><button class="launcher" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 11.5a8.5 8.5 0 0 1-8.5 8.5H4v-7.5A8.5 8.5 0 1 1 20 11.5Z"/><path d="M8 10h8m-8 4h5"/></svg><span></span></button>`;
   const $ = selector => root.querySelector(selector);
@@ -114,20 +117,36 @@ export function mountSupportWidget() {
   $('.launcher span').textContent = copy.open; $('.launcher').setAttribute('aria-label', copy.open);
   $('.close').setAttribute('aria-label', copy.close); $('.send').setAttribute('aria-label', copy.send);
   $('textarea').placeholder = copy.placeholder; $('textarea').setAttribute('aria-label', copy.placeholder);
-  $('.contact').href = links.human; $('.contact').textContent = `${copy.human} ↗`;
+  const agentLink = $('.contact[target]');
+  agentLink.href = links.human; agentLink.textContent = `${copy.human} ↗`;
+  if (scope === 'patent_pct') {
+    const portalLink = $('.case-portal');
+    portalLink.href = links.portal; portalLink.textContent = lang === 'fa' ? 'کارتابل مشتری ↗' : 'Client Portal ↗';
+    portalLink.hidden = false;
+  }
   const challengeContainer = document.createElement('div'); challengeContainer.slot = 'challenge'; host.append(challengeContainer);
   let history = [], busy = false, challengeId, pending, destroyed = false;
   const append = (role, text) => {
     const bubble = document.createElement('div'); bubble.className = `bubble ${role}`; bubble.textContent = text;
     $('.messages').append(bubble); $('.content').scrollTop = $('.content').scrollHeight;
   };
+  const remember = (message, reply) => {
+    history = [...history, { role: 'user', content: message.slice(0, 500) },
+      { role: 'assistant', content: reply.slice(0, 500) }].slice(-6);
+  };
   const show = open => { $('.panel').hidden = !open; $('.launcher').setAttribute('aria-expanded', String(open));
     if (open) $('textarea').focus(); else $('.launcher').focus(); };
   $('.launcher').onclick = () => show($('.panel').hidden); $('.close').onclick = () => show(false);
   root.addEventListener('keydown', event => { if (event.key === 'Escape') show(false); });
-  for (const topic of (scope === 'articles' ? ['articles', 'pricing', 'tracking', 'human'] : ['start', 'documents', 'pricing', 'human'])) {
+  const quickTopics = scope === 'articles' ? ['articles', 'pricing', 'tracking', 'human']
+    : scope === 'patent_pct' ? ['start', 'login', 'pricing', 'drafts', 'filing'] : ['start', 'documents', 'pricing', 'human'];
+  for (const topic of quickTopics) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'chip'; button.textContent = copy[topic];
-    button.onclick = () => { if (busy) return; append('user', copy[topic]); append('assistant', faqAnswer(topic, lang, scope)); };
+    button.onclick = () => {
+      if (busy) return;
+      const reply = faqAnswer(topic, lang, scope);
+      append('user', copy[topic]); append('assistant', reply); remember(copy[topic], reply);
+    };
     $('.chips').append(button);
   }
   async function token() {
@@ -147,7 +166,7 @@ export function mountSupportWidget() {
     const message = $('textarea').value.trim(); if (!message || busy) return;
     busy = true; $('.send').disabled = true; $('textarea').value = ''; append('user', message);
     $('.status').textContent = copy.thinking; $('.status').hidden = false;
-    let reply = scopedGuideAnswer(message, lang, scope);
+    let reply = scopedGuideAnswer(message, lang, scope, history);
     try {
       if (!reply) await configure();
       if (!reply && !destroyed && config.endpoint && config.turnstileSiteKey) {
@@ -170,8 +189,8 @@ export function mountSupportWidget() {
     finally {
       reply ||= faqAnswer('human', lang, scope);
       append('assistant', reply);
-      history.push({ role: 'user', content: message.slice(0, 500) }, { role: 'assistant', content: reply.slice(0, 500) });
-      history = history.slice(-6); busy = false; pending = null; $('.send').disabled = false; $('.status').hidden = true;
+      remember(message, reply);
+      busy = false; pending = null; $('.send').disabled = false; $('.status').hidden = true;
       if (challengeId !== undefined && window.turnstile) { window.turnstile.remove(challengeId); challengeId = undefined; }
       $('textarea').focus();
     }

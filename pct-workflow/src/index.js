@@ -41,9 +41,14 @@ function storageReady(env) {
 }
 
 function configured(env) {
-  if (!testMode(env) && env.PCT_ENABLED !== 'true') return false;
+  const isolated = testMode(env);
+  if (!isolated && (env.ENVIRONMENT !== 'production' || env.PCT_ENABLED !== 'true' || env.PCT_ISOLATED_TEST === 'true')) return false;
   if (!env.PCT_DB || !env.PATENT_API?.fetch || !storageReady(env)) return false;
-  try { F.legalVersion(env, 'undertaking'); F.legalVersion(env, 'agreement'); return true; } catch { return false; }
+  try {
+    const docs = [F.legalVersion(env, 'undertaking'), F.legalVersion(env, 'agreement')];
+    const sample = /(?:^|[./_-])(?:test|sample|demo|fixture)(?:$|[./_-])/i;
+    return isolated || !docs.some(doc => sample.test(doc.key) || sample.test(doc.version));
+  } catch { return false; }
 }
 
 async function upstream(req, env, path, body) {
