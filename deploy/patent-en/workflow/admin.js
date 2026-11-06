@@ -1,10 +1,12 @@
 import { $, api, esc, fileForm, login, money, notice, onClick, onForm, post, session, set, timeline, when } from './shared.js';
 
 const ROOT = '/api/pct/admin';
+const focused = new URLSearchParams(location.search).get('task')==='stage';
 let token = location.hash.slice(1);
 let id = null;
 const card = (title, content) => `<section class="card"><h3>${title}</h3>${content}</section>`;
 const btn = label => `<button type="submit">${label}</button>`;
+const publish = label => btn(focused ? 'Prepare for Telegram confirmation' : label);
 const txt = (name, label, attrs = '') => `<label>${label}<input name="${name}" required ${attrs}></label>`;
 const check = (name, label) => `<label class="check"><input type="checkbox" name="${name}" required> ${label}</label>`;
 const optNote = `<label>Message to the client (optional)<textarea name="note" maxlength="1500"></textarea></label>`;
@@ -35,7 +37,7 @@ function controls(c) {
       <div class="grid">${upload('report_pdf','Encrypted report PDF','.pdf',true)}${upload('report_docx','Report Word file','.docx')}</div>
       <form id="report-publish">${pick(c,'pdf_id','Encrypted PDF','report_pdf')}${pick(c,'word_id','Editable Word','report_docx')}
       <label>Candidate codes from the report (comma separated, optional)<input name="candidates" maxlength="500" placeholder="C1,C2"></label>
-      ${check('reviewed','I checked these files and candidate codes belong to the selected case.')}${btn('Publish locked report and open US$445 invoice')}</form>`);
+      ${check('reviewed','I checked these files and candidate codes belong to the selected case.')}${publish('Publish locked report and open US$445 invoice')}</form>`);
     case 'idea_review': return card('Review the chosen invention', `<p>${esc(c.idea.source === 'team' ? 'Team candidate ' + c.idea.candidate : 'Original invention')}</p>
       <p>${esc(c.idea.description)}</p>
       <form id="idea-decision"><label>Decision<select name="decision"><option value="accept">Accept</option><option value="decline">Decline</option></select></label>
@@ -51,7 +53,7 @@ function controls(c) {
       <button type="button" class="secondary" data-signed-review="${c.agreement_review.document_id}">Download signed upload</button></div>
       <form id="review-agreement"><label>Decision<select name="decision"><option value="accept">Approve signed copy</option><option value="decline">Return for correction</option></select></label>
         <label class="check"><input type="checkbox" name="matches_quote"> I verified this file matches the case, signed parties and quote (required to approve).</label>
-        ${optNote}${btn('Record review')}</form>`);
+        ${optNote}${publish('Record review')}</form>`);
     case 'pct_start_pending': return card('Start PCT drafting',`<p>The client accepted the engagement, paid the start invoice and provided filing details.</p><form id="draft-start">${btn('Start preparing Word draft v1.0')}</form>`);
     case 'pct_drafting':
     case 'pct_draft_revision': {
@@ -62,12 +64,12 @@ function controls(c) {
         ${upload('pct_draft','Word draft v'+next,'.docx')}
         <form id="publish-draft">${pick(c,'document_id','Word draft','pct_draft')}
           <label>Note to the client (optional)<textarea name="note" maxlength="1000"></textarea></label>
-          ${check('reviewed','I verified this Word draft belongs to the selected case.')}${btn('Send v'+next+' for client review')}</form>`);
+          ${check('reviewed','I verified this Word draft belongs to the selected case.')}${publish('Send v'+next+' for client review')}</form>`);
     }
     case 'pct_finalizing': return card('Filing package ready', `<div class="grid">${upload('package_review','Review copy (PDF)','.pdf')}
       ${upload('package_final','Final filing package','.pdf,.docx,.zip')}</div>
       <form id="package-ready">${pick(c,'review_id','Review copy','package_review')}${pick(c,'final_id','Final package','package_final')}
-      ${check('reviewed','I checked that the two files belong to this case.')}${btn('Open package invoice and client review')}</form>`);
+      ${check('reviewed','I checked that the two files belong to this case.')}${publish('Open package invoice and client review')}</form>`);
     case 'pct_package_ready': return card('Before filing','<p>Awaiting verified settlement of the filing package invoice.</p>');
     case 'pct_filing_consent': return card('Before filing','<p>Awaiting final client authorization for this version in ePCT.</p>');
     case 'pct_authorized': return card('Start submitting in ePCT',`<form id="start-submission">
@@ -78,7 +80,7 @@ function controls(c) {
       ${upload('filed_document','Filed document or bundle','.pdf,.docx,.zip')}</div><form id="filed">
       <fieldset><legend>Receipt files to share (at least one)</legend>${c.documents.filter(d=>d.category==='filing_receipt').map(d=>`<label class="check"><input type="checkbox" name="receipt_ids" value="${d.id}"> ${esc(d.name)}</label>`).join('') || '<p>Upload a receipt first.</p>'}</fieldset>
       <fieldset><legend>Filed documents to share</legend>${c.documents.filter(d=>d.category==='filed_document').map(d=>`<label class="check"><input type="checkbox" name="document_ids" value="${d.id}"> ${esc(d.name)}</label>`).join('') || '<p>No filed documents uploaded yet.</p>'}</fieldset>${txt('application_number','Official PCT application number','placeholder="PCT/XX2026/000001" maxlength="40"')}
-        ${txt('filed_on','Filing date','type="date"')}${check('fees_confirmed','I verified the official fees and filing evidence.')}${btn('Mark filed and await ISA')}</form>`);
+        ${txt('filed_on','Filing date','type="date"')}${check('fees_confirmed','I verified the official fees and filing evidence.')}${publish('Mark filed and await ISA')}</form>`);
     case 'isa_wait': {
       const searchFiles = [
         ['isa_report','International Search Report (ISR)','report_id'],
@@ -90,14 +92,14 @@ function controls(c) {
       <label>Agreed response or amendment needed?<select name="response_needed"><option value="no">No</option><option value="yes">Yes</option></select></label>
       ${enabled ? searchFiles.map(([category,label,name])=>`<label>${label}<select name="${name}"><option value="">No file selected</option>${options(c,category)}</select></label>`).join('') : ''}
       ${enabled ? '<div class="grid"><label>Official deadline, if stated<input type="date" name="official_due_on"></label><label>Official notice reference for that deadline<input name="official_due_source" maxlength="180"></label></div>' : ''}
-      ${btn('Record ISA documents')}</form>`);
+      ${publish('Record ISA documents')}</form>`);
     }
-    case 'pct_response': return card('Response and amendments', `<form id="response-done">${txt('reference','Response / amendment reference','maxlength="180"')}${btn('Mark agreed response complete')}</form>`);
+    case 'pct_response': return card('Response and amendments', `<form id="response-done">${txt('reference','Response / amendment reference','maxlength="180"')}${publish('Mark agreed response complete')}</form>`);
     case 'publication_wait': return card('Official publication scheduling', `${upload('publication_notice','Official publication scheduling notice','.pdf')}
       <form id="complete">${pick(c,'document_id','Official notice','publication_notice')}${txt('reference','Official notice reference','maxlength="180"')}
       ${txt('publication_date','Scheduled publication date','type="date"')}
       ${check('official_confirmed','I checked the date against the official WIPO/ePCT notice.')}
-      ${check('work_complete','All agreed services for this case are complete.')}${btn('Complete services and issue final invoice')}</form>`);
+      ${check('work_complete','All agreed services for this case are complete.')}${publish('Complete services and issue final invoice')}</form>`);
     default: return '';
   }
 }
@@ -105,8 +107,11 @@ function controls(c) {
 function render(c) {
   const mayWaive = c.engagement && c.invoices.some(i => i.key === 'pct_start' && i.status === 'paid') &&
     !c.invoices.some(i => i.key === 'pct_ready' && i.status === 'issued') && !c.settlement;
-  set(`<section class="card"><p class="case-key">${esc(c.public_ref)}</p><h2>${esc(c.title)}</h2>
-    <p>${esc(c.client.name)} · ${esc(c.client.country)}</p><span class="pill">${esc(c.stage_label)}</span></section>
+  const heading=`<section class="card"><p class="case-key">${esc(c.public_ref)}</p><h2>${esc(c.title)}</h2>
+    <p>${esc(c.client.name)} · ${esc(c.client.country)}</p><span class="pill">${esc(c.stage_label)}</span></section>`;
+  const documents=`<ul>${c.documents.map(d=>`<li><button type="button" class="secondary" data-download="${d.id}">Download ${esc(d.name)}</button> <small>${esc(d.category.replaceAll('_',' '))}</small></li>`).join('')}</ul>`;
+  set(focused ? heading+card('Prepare this case update','<p>Save the files and details below, then confirm publication in your private Telegram chat.</p>')+
+    controls(c)+`<details class="card"><summary>Case files</summary>${documents}</details>` : `${heading}
     ${Array.isArray(c.team_updates) && !['completed','closed_by_agreement','declined'].includes(c.stage) ? card('Post a case update',`
       <p>The client sees this in their private case. Select the checkbox only when the message reports progress on the current case stage.</p>
       <form id="team-update"><label>Case update<textarea name="body" minlength="2" maxlength="2000" required></textarea></label>
@@ -117,7 +122,7 @@ function render(c) {
     ${c.filing_profile ? card('Private filing information', `<p>${esc(c.filing_profile.legal_name)} · ${esc(c.filing_profile.role)}</p>
       <p>${esc(c.filing_profile.address)}, ${esc(c.filing_profile.postal_code)} ${esc(c.filing_profile.country)}</p>
       <p>ePCT access plan: ${esc(c.filing_profile.epct_access.replaceAll('_',' '))}</p>`) : ''}
-    ${card('Private documents', `<ul>${c.documents.map(d=>`<li><button type="button" class="secondary" data-download="${d.id}">Download ${esc(d.name)}</button> <small>${esc(d.category.replaceAll('_',' '))}</small></li>`).join('')}</ul>`)}
+    ${card('Private documents',documents)}
     ${mayWaive ? card('Settle by agreement', `<form id="waive"><label>Reason for closing / waiving the final fee<textarea name="reason" required minlength="5" maxlength="1000"></textarea></label>
       ${check('agreed','The client and I have agreed to waive the final completion fee.')}${btn('Waive final fee and close with zero balance')}</form>`) : ''}
     ${c.settlement ? card('Balance', '<p>Case settled — balance US$0.</p>') : ''}
@@ -125,6 +130,11 @@ function render(c) {
     ${card('Case activity', timeline(c.events))}`);
 
   const action = async body => {
+    if (focused) {
+      await post(path()+'/prepare',{...body,revision:c.revision},token);
+      notice('Prepared. Return to Telegram, reopen this case and confirm publication.');
+      return;
+    }
     const changed = await post(path() + '/action', body, token);
     render(changed);
     notice('Case updated.');

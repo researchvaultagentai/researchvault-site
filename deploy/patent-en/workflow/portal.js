@@ -1,11 +1,12 @@
 import { progress } from './progress.js';
-import { caseNotifications, nextAction, teamUpdates, tickClocks } from './case-status.js';
+import { caseEventText, caseNotifications, nextAction, teamUpdates, tickClocks } from './case-status.js';
 import { USDT } from '/patent/assets/international-payments-config.js';
 import { $, api, esc, fileForm, login, money, notice, onClick, onForm, post, requestCode, session, set, terms, timeline, when } from './shared.js';
 
 const ROOT = '/api/pct';
 const PATH = '/patent/en/workflow/';
 let user, testMode = false, activeCase = null, dirty = false, checking = false, clockSample = null;
+let paymentCheck = null;
 const casePath = id => `${ROOT}/cases/${encodeURIComponent(id)}`;
 const txt = (name, label, extra = '') => `<label>${label}<input name="${name}" required ${extra}></label>`;
 const check = (name, label) => `<label class="check"><input type="checkbox" name="${name}" required> ${label}</label>`;
@@ -44,7 +45,10 @@ function renderInvoices(c) {
     ${i.non_refundable ? '<p class="quiet">Stage 1 order terms apply.</p>' : ''}
     ${i.receipt_pending ? '<p>Your receipt is awaiting review. The invoice remains open until confirmation.</p>' : ''}
     ${i.status === 'issued' && testMode ? '<p class="quiet">Test invoice. An administrator will simulate confirmation; no transfer is needed.</p>' : ''}
-    ${i.status === 'issued' && !testMode ? `<details><summary>Payment instructions</summary>
+    ${i.status==='issued' && c.usdt_checkout && !i.receipt_pending ? `<p>
+      <button type="button" data-checkout="${i.key}">Pay in USDT</button></p>
+      <div data-checkout-details="${i.key}" hidden></div><p data-checkout-status="${i.key}" role="status"></p>` : ''}
+    ${i.status === 'issued' && !testMode && (!c.usdt_checkout || i.receipt_pending) ? `<details><summary>Payment instructions</summary>
       <p>Send exactly <b>${(i.amount_cents/100).toFixed(2)} USDT</b> on ${USDT.network} to <code>${USDT.address}</code>.</p>
     <form data-receipt="${i.key}">${txt('reference','TRON transaction ID','pattern="[0-9a-fA-F]{64}" maxlength="64"')}${button('Submit receipt for review')}</form></details>` : ''}</section>`).join(''),'case-invoices');
 }
@@ -126,7 +130,7 @@ function renderCase(c) {
     ${card('Documents', files ? '<ul>' + files + '</ul>' : '<p class="quiet">No files have been shared yet.</p>','case-documents')}
     ${card('Messages', `${c.messages.map(m=>`<div class="case-message" data-from="${m.actor==='team'?'team':'client'}"><small><b>${m.actor==='team'?'ResearchVault team':'You'}</b> · ${esc(when(m.at))}</small><p>${esc(m.body)}</p></div>`).join('')}
       <form id="message"><label>Message to the team<textarea name="body" required maxlength="2000"></textarea></label>${button('Send private message')}</form>`,'case-messages')}
-    ${card('Case activity', timeline(c.events),'case-activity')}`;
+    ${card('Case activity', timeline(c.events,caseEventText),'case-activity')}`;
 }
 
 function renderQuote(c) {
@@ -169,6 +173,43 @@ function renderFilingIntake() {
     ${button('Submit filing details')}</form>`);
 }
 
+function showCheckout(c,key,payment) {
+  const details=$(`[data-checkout-details="${key}"]`), status=$(`[data-checkout-status="${key}"]`);
+  if (activeCase!==c || !status) return;
+  if (paymentCheck) paymentCheck.last=payment;
+  if (payment.status==='paid') {
+    status.textContent='Payment confirmed. Your case is being updated.';
+    paymentCheck=null;
+    void checkStatus();
+    return;
+  }
+  if (details.hidden) {
+    details.hidden=false;
+    details.innerHTML=`<p>Send exactly <strong>${(payment.amount_cents/100).toFixed(2)} USDT</strong> on TRON (TRC20) to this invoice address.</p>
+      <p><code class="checkout-address">${esc(payment.address)}</code></p>
+      <p><button type="button" data-copy-payment="${key}" class="secondary">Copy address</button></p>
+      <p class="quiet">The portal checks for confirmation automatically. You can close this page and return later.</p>`;
+    onClick(`[data-copy-payment="${key}"]`, async button=>{
+      await navigator.clipboard.writeText(payment.address);
+      button.textContent='Address copied';
+    });
+  }
+  status.textContent=payment.status==='review_required' ? 'A transfer needs review. Please wait for an update before sending another payment.'
+    : 'Waiting for the transfer to be confirmed on TRON.';
+}
+
+async function checkPayment() {
+  const check=paymentCheck;
+  if (!check || check.busy || document.hidden || activeCase!==check.case) return;
+  check.busy=true;
+  try {
+    const payment=await post(casePath(check.case.id)+'/checkout/check',{milestone:check.key});
+    showCheckout(check.case,check.key,payment);
+  } catch {
+    // Keep the checkout address visible through a transient network error.
+  } finally { check.busy=false; }
+}
+
 function bindCase(c) {
   onClick('#mark-case-notices-read', async () => {
     await post(casePath(c.id)+'/seen',{revision:c.revision});
@@ -180,6 +221,14 @@ function bindCase(c) {
     await refresh();
   });
   const root = casePath(c.id);
+  for (const {key} of c.invoices) {
+    onClick(`[data-checkout="${key}"]`,async()=>{
+      const payment=await post(root+'/checkout',{milestone:key});
+      paymentCheck={case:c,key,busy:false};
+      showCheckout(c,key,payment);
+      await checkPayment();
+    });
+  }
   const act = async payload => { await post(root + '/action', payload); await refresh(); };
   for (const form of document.querySelectorAll('[data-receipt]')) {
     const key = form.dataset.receipt;
@@ -284,7 +333,15 @@ async function refresh() {
   set(`<div class="layout">${sidebar}<div class="stack">${c ? renderCase(c)
     : (!doc.accepted ? '<div id="renew-nda"></div>' : renderNew(doc, list.outstanding_balance))}</div></div>`);
   if (!c && !doc.accepted) return renderUndertaking(doc);
-  if (c) { bindCase(c); updateClocks(); }
+  if (c) {
+    bindCase(c); updateClocks();
+    if (paymentCheck?.case.id===c.id && c.invoices.some(i=>i.key===paymentCheck.key && i.status==='issued')) {
+      paymentCheck={...paymentCheck,case:c,busy:false};
+      if (paymentCheck.last) showCheckout(c,paymentCheck.key,paymentCheck.last);
+    } else {
+      paymentCheck=null;
+    }
+  }
   const requestId = crypto.randomUUID();
   onForm('#new-case', async data => {
     const result = await post(ROOT + '/cases', { ...Object.fromEntries(data), accepted: true,
@@ -319,6 +376,7 @@ async function checkStatus() {
   finally{checking=false;}
 }
 setInterval(checkStatus,12000);
+setInterval(checkPayment,15000);
 const updateClocks=()=>{if(!document.hidden && clockSample)tickClocks(clockSample.server+(performance.now()-clockSample.local)/1000);};
 setInterval(updateClocks,15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){updateClocks();checkStatus();}});
@@ -332,7 +390,7 @@ async function open(u) {
 onClick('#sign-out', async () => { await post('/api/pct/auth/logout', {}); location.assign(PATH); });
 (async () => {
   const status = await api(ROOT + '/status');
-  if (!status?.enabled) return set(card('The new portal is not available yet', '<a href="/patent/en/dashboard/">Open the existing client portal</a>'));
+  if (!status?.enabled) return set(card('PCT applications are currently paused', '<a href="/patent/en/dashboard/">Open your case dashboard</a>'));
   testMode = status.test_mode === true;
   try { await open(await session(true)); }
   catch (error) { if (error.status !== 401) throw error; login(open, '', await api(ROOT+'/auth/options')); }

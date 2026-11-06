@@ -50,7 +50,7 @@ test('every static local link and asset resolves after moving the English home p
   }
   const home = await readFile(path.join(output, 'index.html'), 'utf8');
   assert.ok(home.includes(`rel="canonical" href="${ORIGIN}/"`));
-  assert.ok(home.includes('href="/patent/en/account/?next=/patent/en/intake/"'));
+  assert.ok(home.includes('href="/patent/en/workflow/?new=1"'));
   assert.match(home, /data-pct-client-portal href="\/patent\/en\/account\/\?next=\/patent\/en\/dashboard\/"/);
 });
 
@@ -85,7 +85,7 @@ test('the English landing includes the original walkthrough and its English capt
 test('portal entry uses login for guests, preserves an older case, and rejects open redirects', async () => {
   const link = { href: '' };
   const window = { location: { origin: ORIGIN } };
-  const document = { querySelectorAll: () => [link] };
+  const document = { querySelectorAll: selector => selector==='[data-pct-client-portal]'?[link]:[] };
   vm.runInNewContext(await readFile(path.join(output, 'patent/assets/english-host.js'), 'utf8'), {
     window, document, URL,
   });
@@ -126,6 +126,7 @@ test('a ready private workflow takes the current portal links while an earlier c
   const routes = window.PatentEnglish;
   routes.applySession(null);
   assert.match(portal.href, /\/account\/\?next=/);
+  assert.equal(start.href, '/patent/en/workflow/?new=1');
   assert.equal(copy.textContent, 'Sign the NDA');
   assert.equal(await routes.workflowEnabled(), true);
   assert.equal(portal.href, '/patent/en/workflow/');
