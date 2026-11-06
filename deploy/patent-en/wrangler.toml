@@ -10,8 +10,15 @@ service = "researchvault-patent-api"
 binding = "SUPPORT_SERVICE"
 service = "researchvault-support"
 
-# Enable this binding only after the private PCT service has been provisioned
-# and tested. Do not connect branch previews to production client data.
-# [[services]]
-# binding = "PCT_WORKFLOW"
-# service = "researchvault-pct-workflow"
+# Keep the existing services in the production override as well.
+[[env.production.services]]
+binding = "PATENT_API"
+service = "researchvault-patent-api"
+
+[[env.production.services]]
+binding = "SUPPORT_SERVICE"
+service = "researchvault-support"
+
+[[env.production.services]]
+binding = "PCT_WORKFLOW"
+service = "researchvault-pct-workflow"

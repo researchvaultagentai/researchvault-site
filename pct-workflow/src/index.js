@@ -11,6 +11,7 @@ const INTERNAL = 'https://pct-internal.invalid';
 const ID = /^pct_[a-f0-9]{24}$/;
 const DOC_ID = /^doc_[a-f0-9]{32}$/;
 const ADMIN_ACTIONS = new Set(['authorize_report', 'decide_idea', 'quote', 'waive_completion', 'start_drafting', 'start_submission']);
+const BOT_READ_ONLY = new Set(['/internal/pct/list','/internal/pct/case','/internal/pct/log']);
 const APP_NUMBER = /^PCT\/[A-Z]{2}\d{4}\/\d{6}$/;
 
 function testMode(env) {
@@ -40,15 +41,19 @@ function storageReady(env) {
     (Boolean(env.PCT_STORE) || Boolean(env.B2_KEY_ID && env.B2_APPLICATION_KEY && env.B2_BUCKET_ID && env.B2_BUCKET_NAME));
 }
 
-function configured(env) {
+function resourcesReady(env) {
   const isolated = testMode(env);
-  if (!isolated && (env.ENVIRONMENT !== 'production' || env.PCT_ENABLED !== 'true' || env.PCT_ISOLATED_TEST === 'true')) return false;
+  if (!isolated && (env.ENVIRONMENT !== 'production' || env.PCT_ISOLATED_TEST === 'true')) return false;
   if (!env.PCT_DB || !env.PATENT_API?.fetch || !storageReady(env)) return false;
   try {
     const docs = [F.legalVersion(env, 'undertaking'), F.legalVersion(env, 'agreement')];
     const sample = /(?:^|[./_-])(?:test|sample|demo|fixture)(?:$|[./_-])/i;
     return isolated || !docs.some(doc => sample.test(doc.key) || sample.test(doc.version));
   } catch { return false; }
+}
+
+function configured(env) {
+  return (testMode(env) || env.PCT_ENABLED === 'true') && resourcesReady(env);
 }
 
 async function upstream(req, env, path, body) {
@@ -291,6 +296,7 @@ async function adminAction(env, row, actor, b, fromBot = false) {
       event = 'report_authorized';
       break;
     case 'decide_idea':
+      if (fromBot) S.ensure(b.revision === row.revision, 'The case changed. Open it again before sending the decision.', 409, 'case_changed');
       S.decideIdea(s, { accepted: b.accepted, note: clean(b.note, 1500), rightsRef: clean(b.rights_ref, 200) }, at);
       event = b.accepted ? 'idea_accepted' : 'idea_declined';
       break;
@@ -420,17 +426,21 @@ async function botRoute(req, env, url) {
   const actor = req.headers.get('x-pct-telegram-actor') || '';
   const admins = String(env.PCT_TELEGRAM_ADMIN_IDS || '').split(',').map(x => x.trim());
   S.ensure(/^\d{1,20}$/.test(actor) && admins.includes(actor), 'Administrator access required.', 403, 'forbidden');
-  S.ensure(req.method === 'POST' && configured(env), 'Workflow unavailable.', 503, 'workflow_unavailable');
+  const enrollmentOpen = configured(env);
+  S.ensure(req.method === 'POST' && (enrollmentOpen || (BOT_READ_ONLY.has(url.pathname) && resourcesReady(env))),
+    'Workflow unavailable.', 503, 'workflow_unavailable');
   const b = await input(req), db = env.PCT_DB;
+  const offset = Number.isSafeInteger(b.offset) ? Math.min(2_147_483_647, Math.max(0,b.offset)) : 0;
   switch (url.pathname) {
     case '/internal/pct/list':
-      return json(await D.adminList(db, Math.min(1000, Math.max(0, Math.floor(Number(b.offset) || 0)))));
+      return json({ ...await D.adminList(db, offset), enrollment_open: enrollmentOpen });
     case '/internal/pct/log':
-      return json(await D.caseLog(db,b.case_id,Math.min(300,Math.max(0,Math.floor(Number(b.offset)||0)))));
+      return json(await D.caseLog(db,b.case_id,offset));
     case '/internal/pct/case': {
       const c = await D.caseById(db, b.case_id);
       return json({ id: c.id, public_ref: c.public_ref, stage: c.stage, revision: c.revision,
-        team_idea: c.state.idea?.source === 'team' });
+        team_idea: c.state.idea?.source === 'team', enrollment_open: enrollmentOpen,
+        can_waive_completion: enrollmentOpen && S.canWaiveCompletion(c.state) });
     }
     case '/internal/pct/link':
       return json({ url: await D.newAdminLink(db, b.case_id, actor, env.PCT_ORIGIN) });

@@ -272,6 +272,11 @@ export function markComplete(s, official, at) {
   invoice(s, 'pct_completion', s.quote.completion, at);
 }
 
+export const canWaiveCompletion = s => Boolean(s.quote && s.engagement && s.invoices.pct_start?.status === 'paid' &&
+  (!s.invoices.pct_ready || s.invoices.pct_ready.status === 'paid') &&
+  (!s.invoices.pct_completion || s.invoices.pct_completion.status === 'issued') &&
+  !['completed', 'closed_by_agreement'].includes(s.stage));
+
 export function waiveCompletion(s, reason, at) {
   ensure(s.quote && s.engagement && s.invoices.pct_start?.status === 'paid' &&
     (!s.invoices.pct_ready || s.invoices.pct_ready.status === 'paid'),

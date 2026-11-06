@@ -33,7 +33,7 @@ export async function deliverPctNotices(env,fetcher=fetch,limit=2) {
     const amount=n.amount_cents ? '\nUS$'+(n.amount_cents/100).toFixed(2) : '';
     const text=n.public_ref+'\n'+(labels[n.type] || 'پرونده به‌روزرسانی شد.')+(n.version?' · v'+n.version:'')+amount;
     const res=await fetcher('https://api.telegram.org/bot'+target.token+'/sendMessage',{
-      method:'POST',redirect:'error',signal:AbortSignal.timeout(6500),headers:{'content-type':'application/json'},
+      method:'POST',redirect:'manual',signal:AbortSignal.timeout(6500),headers:{'content-type':'application/json'},
       body:JSON.stringify({chat_id:target.chat,text,protect_content:true,disable_web_page_preview:true,
         reply_markup:{inline_keyboard:[[{text:'دیدن پرونده',callback_data:'p2:case:'+n.case_id}]]}}),
     });

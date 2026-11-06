@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
@@ -81,12 +81,15 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   const edge=`export default {fetch(req,env){const p=new URL(req.url).pathname;
     return p.startsWith('/api/pct/')||p.startsWith('/internal/pct/')?env.PCT.fetch(req):env.AUTH.fetch(req)}}`;
   const prod = {...vars,ENVIRONMENT:'production',PCT_ORIGIN:PROD,PCT_ENABLED:'true',PCT_ISOLATED_TEST:'false'};
+  const productionDocs={PCT_UNDERTAKING_KEY:'pct-workflow/legal/undertaking.pdf',PCT_UNDERTAKING_VERSION:'RV-NDA-1',
+    PCT_AGREEMENT_KEY:'pct-workflow/legal/agreement.docx',PCT_AGREEMENT_VERSION:'RV-PCT-3'};
   const mf=new Miniflare({workers:[
     module('edge',edge,{serviceBindings:{PCT:'pct',AUTH:'auth'}}),
     module('pct',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},bindings:vars}),
     module('prod-guard',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
-      bindings:{...prod,PCT_UNDERTAKING_KEY:'pct-workflow/legal/undertaking.pdf',PCT_UNDERTAKING_VERSION:'RV-NDA-1',
-        PCT_AGREEMENT_KEY:'pct-workflow/legal/agreement.docx',PCT_AGREEMENT_VERSION:'RV-PCT-3'}}),
+      bindings:{...prod,...productionDocs}}),
+    module('prod-off',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
+      bindings:{...prod,...productionDocs,PCT_ENABLED:'false'}}),
     module('prod-sample',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},bindings:prod}),
     module('auth',auth,{d1Databases:{DB:'test-identity'},bindings:{ENVIRONMENT:'test',ADMIN_EMAILS:ADMIN,OTP_PEPPER:'test-otp-pepper',
       SESSION_PEPPER:'test-session-pepper',RESEND_API_KEY:'test-key'},outboundService:async req=>{
@@ -128,8 +131,9 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     await r.text();
     return cookie;
   }
-  async function bot(route,body={},actor=ACTOR,expected=200) {
-    const res=await mf.dispatchFetch(INTERNAL+route,{method:'POST',headers:{'x-pct-telegram-actor':actor,'content-type':'application/json'},body:JSON.stringify(body)});
+  async function bot(route,body={},actor=ACTOR,expected=200,worker=mf) {
+    const init={method:'POST',headers:{'x-pct-telegram-actor':actor,'content-type':'application/json'},body:JSON.stringify(body)};
+    const res=await (worker===mf?mf.dispatchFetch(INTERNAL+route,init):worker.fetch(INTERNAL+route,init));
     assert.equal(res.status,expected,route+': '+(res.status===expected?'':await res.clone().text()));
     return res.json();
   }
@@ -149,7 +153,13 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   const status=await req('/api/pct/status');
   assert.deepEqual(status,{enabled:true,test_mode:true});
   const productionSample=await mf.getWorker('prod-sample');
+  const productionOff=await mf.getWorker('prod-off');
   assert.deepEqual(await req('/api/pct/status',{worker:productionSample,origin:PROD}),{enabled:false});
+  assert.deepEqual(await req('/api/pct/status',{worker:productionOff,origin:PROD}),{enabled:false});
+  assert.deepEqual(await bot('list',{},ACTOR,200,productionOff),{cases:[],more:false,enrollment_open:false});
+  await bot('list',{},'10000',403,productionOff);
+  await bot('action',{action:'start_drafting'},ACTOR,503,productionOff);
+  await bot('link',{},ACTOR,503,productionOff);
   await req('/api/pct/undertaking/pdf',{worker:productionSample,origin:PROD,expected:503});
   await req('/api/pct/cases',{expected:401});
   await req('/api/pct/undertaking/pdf',{expected:401});
@@ -228,7 +238,30 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     if(choice==='team') {
       await act('decide_idea',{accepted:true},422);
       await act('decide_idea',{accepted:true,rights_ref:'Private idea sale reference 1'});
-    } else await bot('action',{case_id:id,action:'decide_idea',accepted:true});
+    } else {
+      const current=await bot('case',{case_id:id});
+      await bot('action',{case_id:id,action:'decide_idea',accepted:true,revision:current.revision-1},ACTOR,409);
+      const note='We can proceed with this synthetic invention.';
+      if (process.env.PCT_BOT_ADMIN_MODULE) {
+        const { handlePctAdminUpdate }=await import(pathToFileURL(path.resolve(root,process.env.PCT_BOT_ADMIN_MODULE)).href);
+        const messages=[], chat={id:Number(ACTOR),type:'private'}, from={id:Number(ACTOR)};
+        const tgEnv={PCT_WORKFLOW_ENABLED:'true',TELEGRAM_WEBHOOK_SECRET:'local-test',PCT_WORKFLOW:{fetch:async r=>mf.dispatchFetch(r.url,{
+          method:r.method,headers:Object.fromEntries(r.headers),body:await r.text(),
+        })}};
+        const options={adminId:ACTOR,telegramVerified:true,telegramApi:async(_env,method,payload)=>{
+          if(method==='sendMessage')messages.push(payload);
+        }};
+        const callback=(data,text)=>handlePctAdminUpdate(tgEnv,{callback_query:{data,from,message:{chat,from:{is_bot:true},text}}},options);
+        await callback('p2:reason:'+id+':a');
+        assert.match(messages.at(-1)?.text,/^\[PCT decision /);
+        await handlePctAdminUpdate(tgEnv,{message:{text:note,chat,from,reply_to_message:{from:{is_bot:true},text:messages.at(-1).text}}},options);
+        assert.equal((await read()).stage,'idea_review');
+        const preview=messages.at(-1);
+        await callback(preview.reply_markup.inline_keyboard[0][0].callback_data,preview.text);
+        assert.match(messages.at(-1).text,/5000/);
+      } else await bot('action',{case_id:id,action:'decide_idea',accepted:true,revision:current.revision,note});
+      assert.equal((await read()).decision.note,note);
+    }
     const preview=await bot('quote-preview',{case_id:id,total_cents:500000});
     await bot('action',{case_id:id,action:'quote',revision:preview.revision,total_cents:500000});
     const terms=await req(C+'/agreement',{cookie:client});
@@ -315,6 +348,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   // The second synthetic case represents a later session outside the OTP rate window.
   await identityDb.prepare('UPDATE patent_otp_challenges SET created_at=created_at-3600 WHERE destination=?').bind(USER).run();
   const waived=await firstSteps('synthetic-case-second-002','team');
+  assert.equal((await bot('case',{case_id:waived.id})).can_waive_completion,true);
   const waivedResult=await waived.act('waive_completion',{reason:'Synthetic settlement confirmed with test client.',agreed:true});
   assert.equal(waivedResult.stage,'closed_by_agreement');
   assert.equal(waivedResult.invoices.find(i=>i.key==='pct_completion').status,'waived');
@@ -339,6 +373,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   const list=await bot('list');
   assert.ok(list.cases.some(c=>c.stage==='completed'));
   assert.ok(list.cases.some(c=>c.stage==='closed_by_agreement'));
+  assert.equal((await bot('case',{case_id:waived.id},ACTOR,200,productionOff)).enrollment_open,false);
   let offset=0,all=[];
   for(;;){
     const log=await bot('log',{case_id:settled.id,offset});

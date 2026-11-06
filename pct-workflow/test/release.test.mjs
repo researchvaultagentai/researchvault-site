@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { PDFDocument } from 'pdf-lib';
 import { strToU8, zipSync } from 'fflate';
-import { installRelease, prepareRelease } from '../scripts/release.mjs';
+import { connectAdmin, installRelease, prepareRelease } from '../scripts/release.mjs';
 
 async function localRelease(t) {
   const tmp = await mkdtemp(path.join(tmpdir(), 'rv-pct-release-test-'));
@@ -88,4 +88,27 @@ test('an unscoped key or an existing Worker prevents deployment before any remot
     if (args[0] === 'deployments') return ok([]);
     assert.fail('no remote mutation permitted');
   } }), /new Worker name is unused/);
+});
+
+test('the Telegram setup only updates the installed private Worker while enrollment is closed', async t => {
+  const {dir}=await localRelease(t);
+  await writeFile(path.join(dir,'install-complete.json'),JSON.stringify({worker:'researchvault-pct-workflow',enabled:false}));
+  const admin='77777', token='123456:synthetic_test_token_only';
+  await assert.rejects(connectAdmin(dir,{admin,token,run:()=>assert.fail('No mutation while enrollment is open'),
+    fetcher:async()=>Response.json({connected:true,enabled:true})}), /connected=true and enabled=false/);
+  const calls=[];
+  await connectAdmin(dir,{admin,token,fetcher:async url=>{
+    if (url.endsWith('/api/pct/status')) return Response.json({connected:true,enabled:false});
+    assert.equal(url,`https://api.telegram.org/bot${token}/getMe`);
+    return Response.json({ok:true,result:{username:'ResearchVaultAgentBot'}});
+  },run:(args,conf,input)=>{
+    assert.equal(conf,path.join(dir,'wrangler.json'));
+    calls.push(args.join(' '));
+    if (args[1]==='list') return ok(['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].map(name=>({name})));
+    if (args[1]==='bulk') assert.deepEqual(JSON.parse(input),{
+      PCT_TELEGRAM_ADMIN_IDS:admin,PCT_NOTIFY_CHAT_ID:admin,PCT_TELEGRAM_NOTIFY_TOKEN:token,
+    });
+    return ok();
+  }});
+  assert.deepEqual(calls,['secret list --format json','deploy --keep-vars','secret bulk']);
 });

@@ -127,7 +127,7 @@ async function googleCallback(req,env) {
     const attempt=await env.PCT_DB.prepare('DELETE FROM pct_oauth_attempts WHERE state_hash=? AND expires_at>=? RETURNING verifier,nonce')
       .bind(await fp(env,state),nowSec()).first();
     ensure(attempt,'Expired login state.',403);
-    const token=await fetch('https://oauth2.googleapis.com/token',{method:'POST',redirect:'error',signal:AbortSignal.timeout(7000),
+    const token=await fetch('https://oauth2.googleapis.com/token',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(7000),
       headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({
         grant_type:'authorization_code',client_id:env.PCT_GOOGLE_CLIENT_ID,client_secret:env.PCT_GOOGLE_CLIENT_SECRET,
         redirect_uri:env.PCT_ORIGIN+CALLBACK,code_verifier:attempt.verifier,code,
@@ -135,7 +135,7 @@ async function googleCallback(req,env) {
     ensure(token.ok,'Google sign-in was not confirmed.',403);
     const data=await token.json();
     const identity=await verifyGoogleIdToken(data.id_token,{clientId:env.PCT_GOOGLE_CLIENT_ID,nonce:attempt.nonce,findKey:async kid=>{
-      const r=await fetch('https://www.googleapis.com/oauth2/v3/certs',{redirect:'error',signal:AbortSignal.timeout(5000)});
+      const r=await fetch('https://www.googleapis.com/oauth2/v3/certs',{redirect:'manual',signal:AbortSignal.timeout(5000)});
       ensure(r.ok,'Google sign-in was not confirmed.',403);
       return (await r.json()).keys?.find(k=>k.kid===kid);
     }});

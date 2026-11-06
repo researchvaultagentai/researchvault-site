@@ -1,13 +1,31 @@
 import { submitInternationalReceipt } from '../_lib/international-payments.js';
 
 const PRODUCTION_ORIGIN = 'https://researchvault-patent.pages.dev';
+const PCT_STATUS_PATH = '/api/pct/status';
 const SAFE_METHODS = new Set(['GET', 'HEAD']);
 const METHODS = new Set(['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS']);
+const API_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
 
 function failure(status, message) {
-  return Response.json({ ok: false, message }, {
-    status,
-    headers: { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
+  return Response.json({ ok: false, message }, { status, headers: API_HEADERS });
+}
+
+async function pctStatus(env) {
+  let result;
+  try {
+    if (env.PCT_WORKFLOW?.fetch) {
+      // The health request carries no session, credentials or caller input.
+      const upstream = await env.PCT_WORKFLOW.fetch(new Request(PRODUCTION_ORIGIN + PCT_STATUS_PATH, {
+        redirect: 'manual',
+      }));
+      if (upstream.ok) result = await upstream.json();
+    }
+  } catch {
+    // Report a failed connection without exposing the upstream response.
+  }
+  const connected = typeof result?.enabled === 'boolean' && result.test_mode === undefined;
+  return Response.json({ connected, enabled: connected && result.enabled }, {
+    status: connected ? 200 : 503, headers: API_HEADERS,
   });
 }
 
@@ -21,8 +39,7 @@ export async function onRequest({ request, env }) {
   if (!METHODS.has(request.method)) return failure(405, 'Method not allowed');
   const origin = request.headers.get('origin');
   const fetchSite = request.headers.get('sec-fetch-site');
-  // Google returns through a cross-site top-level GET. The private Worker
-  // checks the short-lived browser state cookie, nonce, PKCE and Google token.
+  // The private Worker checks state, nonce and PKCE for the top-level OAuth return.
   const oauthReturn = url.pathname === '/api/pct/auth/google/callback' && request.method === 'GET' &&
     ['navigate', null].includes(request.headers.get('sec-fetch-mode')) &&
     ['document', null].includes(request.headers.get('sec-fetch-dest'));
@@ -31,18 +48,17 @@ export async function onRequest({ request, env }) {
       (!SAFE_METHODS.has(request.method) && origin !== PRODUCTION_ORIGIN)) {
     return failure(403, 'Same-origin request required');
   }
+  if (url.pathname === PCT_STATUS_PATH) {
+    if (request.method !== 'GET') return failure(405, 'Method not allowed');
+    return pctStatus(env);
+  }
   try {
     if (url.pathname.startsWith('/api/pct/')) {
-      if (!env.PCT_WORKFLOW?.fetch) {
-        if (url.pathname === '/api/pct/status' && request.method === 'GET') {
-          return Response.json({ enabled: false }, { headers: { 'cache-control': 'no-store' } });
-        }
-        return failure(503, 'The new PCT workflow is not connected yet');
-      }
+      if (!env.PCT_WORKFLOW?.fetch) return failure(503, 'The new PCT workflow is not connected yet');
       return await env.PCT_WORKFLOW.fetch(request);
     }
     if (request.method === 'POST' && url.pathname.replace(/\/$/, '') === '/api/cases' && env.PCT_WORKFLOW?.fetch) {
-      const status = await env.PCT_WORKFLOW.fetch(new Request(new URL('/api/pct/status', url)));
+      const status = await pctStatus(env);
       if (status.ok && (await status.json()).enabled) return failure(409, 'Open new cases from the upgraded PCT client portal');
     }
     if (!env.PATENT_API?.fetch) return failure(503, 'Patent portal is not connected yet');

@@ -18,6 +18,7 @@ const database = 'researchvault-pct-workflow-db';
 const databaseId = '72378bc6-cd1b-46a9-955f-62cc30ec9346';
 const prefix = 'pct-workflow/';
 const origin = 'https://researchvault-patent.pages.dev';
+const botUsername = 'researchvaultagentbot';
 const sample = /(?:^|[.\s_-])(?:test|sample|demo|fixture)(?:$|[.\s_-])/i;
 const documents = [
   ['undertaking', 'RV-CONF-EN-v1', 'undertaking-rv-conf-en-v1.pdf'],
@@ -108,6 +109,7 @@ function command(args, conf, input = '') {
   const env = { ...process.env, CLOUDFLARE_ACCOUNT_ID: account, WRANGLER_SEND_METRICS: 'false', FORCE_COLOR: '0', CI: 'true' };
   delete env.B2_KEY_ID;
   delete env.B2_APPLICATION_KEY;
+  delete env.PCT_TELEGRAM_NOTIFY_TOKEN;
   return spawnSync(process.execPath, [wrangler, ...args, '--config', conf], {
     cwd: workerDir, encoding: 'utf8', windowsHide: true, timeout: 120000, input, env,
   });
@@ -187,12 +189,50 @@ export async function installRelease(directory, { run = command, authorize = aut
   console.log('Installed the private PCT Worker with enrollment disabled. No customer routes were switched.');
 }
 
+export async function connectAdmin(directory, { admin, token, run = command, fetcher = fetch } = {}) {
+  check(/^\d{1,20}$/.test(admin || ''), 'Enter the Telegram ID of the existing private bot administrator.');
+  if (token) check(/^\d{6,15}:[a-zA-Z0-9_-]{20,100}$/.test(token), 'Enter the existing ResearchVault bot token locally.');
+  const dir = await outsideRepository(directory, true);
+  const conf = path.join(dir, 'wrangler.json');
+  const [vars, secrets, saved, installed] = await Promise.all(
+    ['vars.json','worker-secrets.json','wrangler.json','install-complete.json'].map(name => json(dir,name)),
+  );
+  check(JSON.stringify(saved) === JSON.stringify(config(vars)) && installed.worker === service && installed.enabled === false,
+    'This is not the completed disabled PCT installation. Use the original private release folder.');
+  await verifyFiles(dir, vars, secrets);
+  const requestOptions = { redirect:'error', cache:'no-store', signal:AbortSignal.timeout(12000) };
+  const response = await fetcher(origin + '/api/pct/status', requestOptions).catch(()=>null);
+  const status = response?.ok ? await response.json().catch(()=>null) : null;
+  check(status?.connected === true && status.enabled === false,
+    'Confirm the live Pages binding reports connected=true and enabled=false before updating the private Worker.');
+  if (token) {
+    const r = await fetcher('https://api.telegram.org/bot'+token+'/getMe',
+      { redirect:'error', signal:AbortSignal.timeout(12000) }).catch(()=>null);
+    const info = r?.ok ? await r.json().catch(()=>null) : null;
+    check(info?.ok && String(info.result?.username || '').toLowerCase() === botUsername,
+      'Telegram could not verify the existing ResearchVault bot token. Check it locally.');
+  }
+  const present = run(['secret','list','--format','json'], conf);
+  check(present.status === 0, 'Could not inspect the private Worker. Check the existing Cloudflare login.');
+  const names = new Set(JSON.parse(present.stdout).map(item=>item.name));
+  check(['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].every(name=>names.has(name)),
+    'The installed private Worker is missing an encryption or Backblaze secret. Do not replace the original key.');
+  check(run(['deploy','--keep-vars'], conf).status === 0, 'Could not update the private PCT Worker.');
+  const updates = { PCT_TELEGRAM_ADMIN_IDS:admin, PCT_NOTIFY_CHAT_ID:admin, ...(token ? {PCT_TELEGRAM_NOTIFY_TOKEN:token} : {}) };
+  check(run(['secret','bulk'], conf, JSON.stringify(updates)).status === 0, 'Could not set the private Telegram administrator.');
+  console.log('Configured the private Telegram administrator. Enrollment remains disabled.');
+  if (!token && !names.has('PCT_TELEGRAM_NOTIFY_TOKEN')) console.log('Automatic notices need the existing bot token; case monitoring can be checked now.');
+}
+
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode, ...args] = process.argv.slice(2);
   try {
     if (mode === 'prepare' && args.length === 3) await prepareRelease(...args);
     else if (mode === 'install' && args.length === 1) await installRelease(...args);
     else if (mode === 'bootstrap' && args.length === 3) await installRelease(await prepareRelease(...args));
-    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install with PRIVATE_DIRECTORY.');
+    else if (mode === 'connect-admin' && args.length === 1) await connectAdmin(args[0], {
+      admin:process.env.PCT_TELEGRAM_ADMIN_ID, token:process.env.PCT_TELEGRAM_NOTIFY_TOKEN,
+    });
+    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install or connect-admin with PRIVATE_DIRECTORY.');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
