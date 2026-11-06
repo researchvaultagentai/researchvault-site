@@ -1,0 +1,20 @@
+name = "researchvault-pct-workflow"
+main = "src/index.js"
+compatibility_date = "2026-10-18"
+workers_dev = false
+preview_urls = false
+
+[vars]
+ENVIRONMENT = "production"
+PCT_ORIGIN = "https://researchvault-patent.pages.dev"
+PCT_ENABLED = "false"
+# Configure the private, versioned undertaking/agreement keys and separate PCT_DB
+# before activation. Keep B2 credentials, encryption key and admin IDs in secrets.
+# PATENT_API must bind the existing account worker for first-party OTP sessions.
+
+[[services]]
+binding = "PATENT_API"
+service = "researchvault-patent-api"
+
+# Add a dedicated D1 database binding named PCT_DB in the release configuration.
+# Use this directory's migrations. Never point a test config at production.

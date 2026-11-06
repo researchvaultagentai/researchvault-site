@@ -30,7 +30,7 @@ test('output includes only English pages, required public assets and deployment 
   for (const missing of ['index.html', 'patent/en/account/index.html', 'patent/en/dashboard/index.html', 'patent/en/intake/index.html', 'patent/en/contract/index.html']) {
     assert.ok(emitted.includes(missing), missing);
   }
-  assert.ok(!emitted.some(file => /(?:patent-api|admin\/|nda-fa|pct-fa|engagement-fa|\.env|wrangler|migrations)/.test(file)));
+  assert.ok(!emitted.some(file => /(?:patent-api|(?:^|\/)admin\/|nda-fa|pct-fa|engagement-fa|\.env|wrangler|migrations)/.test(file)));
 });
 
 test('every static local link and asset resolves after moving the English home page to root', async () => {
@@ -60,6 +60,12 @@ test('copied agreements and shared runtime remain byte-identical to the existing
   }
   for (const file of emitted.filter(file => /^patent\/en\/.*\.html$/.test(file))) {
     const html = await readFile(path.join(output, file), 'utf8');
+    if (file === 'patent/en/filing-guide/index.html') continue;
+    if (/\/(?:workflow|case-admin)\//.test(file)) {
+      assert.match(html, /noindex,nofollow/);
+      assert.match(html, /\/patent\/assets\/pct-workflow\//);
+      continue;
+    }
     const config = html.indexOf('src="/patent/assets/english-host.js"');
     assert.ok(config > 0 && config < html.indexOf('/patent.js"'), file);
   }
@@ -91,12 +97,44 @@ test('portal entry uses login for guests, preserves an older case, and rejects o
   assert.doesNotMatch(login, /contracted SMS provider|Phone-number sign-in|active production sign-in/i);
 });
 
+test('a ready private workflow takes the current portal links while an earlier case keeps its route', async () => {
+  const portal = { href: '' }, start = { href: '' };
+  const copy = { textContent: 'Sign the NDA', dataset: { pctEnabledCopy: 'Receive the signed confidentiality undertaking' } };
+  const window = { location: { origin: ORIGIN } };
+  const targets = { '[data-pct-client-portal]': [portal], '[data-pct-workflow="start"]': [start], '[data-pct-enabled-copy]': [copy] };
+  const document = { querySelectorAll: selector => targets[selector] ?? [] };
+  let calls = 0;
+  const fetch = async (url, options) => {
+    calls++;
+    assert.equal(url, '/api/pct/status');
+    assert.equal(options.credentials, 'omit');
+    return { ok: true, json: async () => ({ enabled: true }) };
+  };
+  vm.runInNewContext(await readFile(path.join(output, 'patent/assets/english-host.js'), 'utf8'), {
+    window, document, URL, AbortSignal, fetch,
+  });
+  const routes = window.PatentEnglish;
+  routes.applySession(null);
+  assert.match(portal.href, /\/account\/\?next=/);
+  assert.equal(copy.textContent, 'Sign the NDA');
+  assert.equal(await routes.workflowEnabled(), true);
+  assert.equal(portal.href, '/patent/en/workflow/');
+  assert.equal(start.href, '/patent/en/workflow/?new=1');
+  assert.equal(copy.textContent, 'Receive the signed confidentiality undertaking');
+  assert.equal(calls, 1);
+  const earlier = new URL(routes.signIn(routes.dashboard + '?case=legacy-1', true), ORIGIN);
+  assert.equal(earlier.searchParams.get('earlier'), '1');
+  assert.equal(earlier.searchParams.get('next'), routes.dashboard + '?case=legacy-1');
+});
+
 test('English deployment includes the support modules and the agreed standalone Stage 1 fee', async () => {
   for (const file of ['assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js', 'assets/rv-pct-support.js']) {
     assert.deepEqual(await readFile(path.join(output, file)), await readFile(path.join(root, file)));
   }
   const home = await readFile(path.join(output, 'index.html'), 'utf8');
   assert.match(home, /US\$1,111/);
+  assert.match(home, /<del[^>]+>US\$4,500–7,000<\/del>/);
+  assert.match(home, /US\$3,500–5,500/);
   assert.match(home, /US\$111 per revision package/);
   assert.doesNotMatch(home, /1,500|2,500|Complex Stage 1/);
 });

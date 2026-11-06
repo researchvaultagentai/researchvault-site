@@ -34,6 +34,7 @@ async function open(options = {}) {
     requests.push(url.pathname);
     if (options.block?.some(suffix => url.pathname.endsWith(suffix))) return route.abort();
     if (url.pathname === '/api/me') return route.fulfill({ json: { user: session } });
+    if (url.pathname === '/api/pct/status') return route.fulfill({ json: { enabled: false } });
     if (url.pathname === '/api/cases') return route.fulfill({ json: { cases: [] } });
     if (url.pathname === '/api/auth/request-otp') {
       assert.deepEqual(route.request().postDataJSON(), { destination: client.email, channel: 'email' });

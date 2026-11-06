@@ -1,7 +1,9 @@
 (() => {
   const $ = id => document.getElementById(id);
   const routes = window.PatentEnglish;
-  const next = routes.safeDestination(new URLSearchParams(location.search).get('next'));
+  const parameters = new URLSearchParams(location.search);
+  const next = routes.safeDestination(parameters.get('next'));
+  const wantsCurrentPortal = !parameters.has('earlier') && (!parameters.has('next') || [routes.dashboard, routes.intake].includes(next));
   const sessionCheck = $('sessionCheck');
   let challenge = null;
   const status = message => { $('loginStatus').textContent = message; };
@@ -27,6 +29,10 @@
 
   document.addEventListener('DOMContentLoaded', async () => {
     sessionCheck.hidden = false;
+    if (wantsCurrentPortal && await routes.workflowEnabled()) {
+      location.replace(routes.workflow + (next === routes.intake ? '?new=1' : ''));
+      return;
+    }
     const user = await Patent.me();
     if (user && next) { location.replace(next); return; }
     showUser(user);

@@ -25,6 +25,9 @@ export function addInternationalBilling(html, source) {
   if (source === 'patent/en/index.html') {
     html = html.replace('</main>', '<section class="section"><div class="wrap card"><h2>International payments</h2><p>USDT on TRON (TRC20) is available against an issued invoice in your private portal. Payment is confirmed after receipt review. PayPal is not available yet.</p><a class="btn btn-secondary" href="/patent/en/payments/">View payment options</a></div></section></main>');
   }
+  if (/\/(?:account|intake|dashboard|contract)\//.test(source)) {
+    html = html.replace('</head>', '<link rel="stylesheet" href="/patent/assets/pct-workflow/legacy-theme.css"></head>');
+  }
   if (source === 'patent/en/dashboard/index.html') {
     const anchor = '<div class="card" style="margin-top:18px"><h3>Documents</h3>';
     if (!html.includes(anchor)) throw new Error('International billing dashboard anchor changed');
@@ -98,11 +101,17 @@ export async function build() {
     await cp(path.join(here, source), path.join(output, 'patent/assets', target));
   }
   await copyEnglishPages();
-  await write('patent/en/payments/index.html', await readFile(path.join(here, 'payments.html'), 'utf8'));
+  for (const name of ['portal.js', 'admin.js', 'shared.js', 'progress.js', 'workflow.css', 'legacy-theme.css']) {
+    await write('patent/assets/pct-workflow/' + name, await readFile(path.join(here, 'workflow', name), 'utf8'));
+  }
+  for (const [route, source] of [['workflow', 'portal.html'], ['case-admin', 'admin.html'], ['filing-guide', 'guide.html']]) {
+    await write('patent/en/' + route + '/index.html', await readFile(path.join(here, 'workflow', source), 'utf8'));
+  }
+  await write('patent/en/payments/index.html', (await readFile(path.join(here, 'payments.html'), 'utf8')).replace('</head>', '<link rel="stylesheet" href="/patent/assets/pct-workflow/legacy-theme.css"></head>'));
   await write('_redirects', '/patent/en / 302\n/patent/en/ / 302\n/patent/en/index.html / 302\n');
   await write('_headers', '/*\n  Referrer-Policy: no-referrer\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n');
   await write('_routes.json', JSON.stringify({ version: 1, include: ['/api/*', '/support/*'], exclude: [] }, null, 2) + '\n');
-  await write('robots.txt', `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /patent/en/account/\nDisallow: /patent/en/intake/\nDisallow: /patent/en/dashboard/\nDisallow: /patent/en/contract/\nDisallow: /patent/en/payments/\nSitemap: ${ORIGIN}/sitemap.xml\n`);
+  await write('robots.txt', `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /patent/en/account/\nDisallow: /patent/en/intake/\nDisallow: /patent/en/dashboard/\nDisallow: /patent/en/contract/\nDisallow: /patent/en/payments/\nDisallow: /patent/en/workflow/\nDisallow: /patent/en/case-admin/\nSitemap: ${ORIGIN}/sitemap.xml\n`);
   await write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${ORIGIN}/</loc></url><url><loc>${ORIGIN}/patent/en/privacy.html</loc></url></urlset>\n`);
   await write('404.html', '<!doctype html><html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found — ResearchVault Patent</title><link rel="stylesheet" href="/patent/assets/patent.css"></head><body class="en-page"><main class="section"><div class="wrap card"><h1>Page not found</h1><p><a href="/">Return to ResearchVault Patent</a></p></div></main></body></html>\n');
   return output;

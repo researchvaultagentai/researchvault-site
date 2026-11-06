@@ -112,7 +112,23 @@ test('only a production, same-origin GET can reach the PCT binding', async () =>
     [new Request('https://preview.researchvault-patent.pages.dev/api/pct/status'), 403],
     [make('/api/pct/status', { headers: { origin: 'https://other.example' } }), 403],
     [make('/api/pct/status', { method: 'POST', headers: { origin: ORIGIN } }), 405],
-    [make('/api/pct/cases', { method: 'POST', headers: { origin: ORIGIN } }), 503],
   ]) assert.equal((await onRequest({ request, env })).status, status);
   assert.equal(calls, 0);
+});
+
+test('the OAuth return is the only cross-site PCT path and legacy creation switches only when enrollment opens', async () => {
+  const hits=[];
+  let enabled=false;
+  const env={PCT_WORKFLOW:{fetch:async r=>{hits.push(new URL(r.url).pathname);return Response.json({enabled});}},
+    PATENT_API:{fetch:async ()=>new Response(null,{status:201})}};
+  const callback='/api/pct/auth/google/callback';
+  const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  const create=make('/api/cases',{method:'POST',headers:{origin:ORIGIN}});
+  assert.equal((await onRequest({request:make(callback,{headers:navigation}),env})).status,200);
+  assert.equal((await onRequest({request:make(callback,{headers:{...navigation,'sec-fetch-mode':'cors'}}),env})).status,403);
+  assert.equal((await onRequest({request:make('/api/pct/cases',{headers:navigation}),env})).status,403);
+  assert.equal((await onRequest({request:create,env})).status,201);
+  enabled=true;
+  assert.equal((await onRequest({request:create,env})).status,409);
+  assert.deepEqual(hits,[callback,'/api/pct/status','/api/pct/status']);
 });

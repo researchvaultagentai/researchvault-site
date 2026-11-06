@@ -1,0 +1,11 @@
+body.en-page{background:radial-gradient(ellipse at 85% 0,#dcefd4 0,transparent 30rem),#f3f8ee;color:#172c22}
+.en-page .topbar{background:#f7faf2;border-bottom:1px solid #d9e7d3}
+.en-page .topbar .brand-badge{background:#1d472f;color:#e3f8d9}
+.en-page .card{border:1px solid #d7e4d3;border-radius:18px;box-shadow:0 12px 36px #193c2220}
+.en-page h1,.en-page h2,.en-page h3{color:#183b28}
+.en-page .btn-primary{background:#1d482f;color:#f1ffe8}
+.en-page .btn-secondary{border-color:#8aaf81;background:#edf6e7;color:#1a412a}
+.en-page .notice{background:#eaf5e2;color:#183c2a}
+.en-page .input:focus,.en-page input:focus-visible,.en-page a:focus-visible,.en-page button:focus-visible{outline:3px solid #6b992a;outline-offset:2px}
+.en-page .layout>*{min-width:0}.en-page .section{overflow-wrap:anywhere}
+@media(prefers-reduced-motion:reduce){.en-page *{scroll-behavior:auto!important}}
