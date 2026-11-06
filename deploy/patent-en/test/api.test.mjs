@@ -75,6 +75,7 @@ test('PCT health checks the private Worker without forwarding credentials or exp
   const response = await onRequest({ request, env: { PCT_WORKFLOW: { fetch: async value => {
     assert.equal(value.url, ORIGIN + '/api/pct/status');
     assert.equal(value.method, 'GET');
+    assert.equal(value.redirect, 'manual');
     assert.equal(value.headers.get('cookie'), null);
     assert.equal(value.headers.get('authorization'), null);
     return Response.json({ enabled: false, internal_detail: 'example' }, {
@@ -93,6 +94,7 @@ test('PCT health distinguishes a disabled production Worker from an unavailable 
     undefined,
     { fetch: async () => { throw new Error('internal test detail'); } },
     { fetch: async () => Response.json({ enabled: false }, { status: 403 }) },
+    { fetch: async () => Response.redirect('https://example.test/',302) },
     { fetch: async () => new Response('not JSON') },
     { fetch: async () => Response.json({ enabled: 'false' }) },
     { fetch: async () => Response.json({ enabled: true, test_mode: true }) },
