@@ -116,7 +116,7 @@ test('only a production, same-origin GET can reach the PCT binding', async () =>
   assert.equal(calls, 0);
 });
 
-test('the OAuth return is the only cross-site PCT path and legacy creation switches only when enrollment opens', async () => {
+test('the OAuth return is the only cross-site PCT path and international intake never falls back to the shared case endpoint', async () => {
   const hits=[];
   let enabled=false;
   const env={PCT_WORKFLOW:{fetch:async r=>{hits.push(new URL(r.url).pathname);return Response.json({enabled});}},
@@ -127,8 +127,9 @@ test('the OAuth return is the only cross-site PCT path and legacy creation switc
   assert.equal((await onRequest({request:make(callback,{headers:navigation}),env})).status,200);
   assert.equal((await onRequest({request:make(callback,{headers:{...navigation,'sec-fetch-mode':'cors'}}),env})).status,403);
   assert.equal((await onRequest({request:make('/api/pct/cases',{headers:navigation}),env})).status,403);
-  assert.equal((await onRequest({request:create,env})).status,201);
+  assert.equal((await onRequest({request:create,env})).status,409);
   enabled=true;
   assert.equal((await onRequest({request:create,env})).status,409);
-  assert.deepEqual(hits,[callback,'/api/pct/status','/api/pct/status']);
+  assert.deepEqual(hits,[callback]);
+  assert.equal((await onRequest({request:create,env:{}})).status,409);
 });

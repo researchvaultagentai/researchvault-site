@@ -46,7 +46,7 @@ export function teamUpdates(c) {
   const items=(c.team_updates || []).filter(i=>Object.hasOwn(tasks,i.kind) && Number.isSafeInteger(i.due_at));
   if (!items.length) return '';
   const now=Number.isSafeInteger(c.server_now) ? c.server_now : Math.floor(Date.now()/1000);
-  return `<section class="team-window" aria-label="Team update targets"><div class="team-window-head">${hourglass}<div><strong>Team update targets</strong><p>We aim to post a reply or progress update within 72 hours of a pending team action.</p></div></div>
+  return `<section class="team-window" id="case-team-updates" aria-label="Team update targets"><div class="team-window-head">${hourglass}<div><strong>Team update targets</strong><p>We aim to post a reply or progress update within 72 hours of a pending team action.</p></div></div>
     <ul>${items.map(i=>{
       const value=countdown(i.due_at,now), date=new Date(i.due_at*1000);
       const local=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(date);
@@ -68,11 +68,15 @@ export function tickClocks(now, root = document) {
   }
 }
 
+const extensionNotice = 'This case needs more work than anticipated. We will post the next update within 72 hours of this notice. Thank you for your patience.';
+
 const noticeEvents = {
+  team_update_extended:[extensionNotice,'#case-team-updates'],
   team_update_posted:['The ResearchVault team posted a private update.','#case-messages'],
   online_meeting_acknowledged:['The team replied to your meeting request.','#case-messages'],
   report_published:['Your specialist report is ready to unlock.','#case-invoices'],
   payment_confirmed:['Your payment was verified.','#case-invoices'],
+  usdt_payment_review:['A USDT transfer needs review. Please wait for an update.','#case-invoices'],
   consultation_requested:['Your payment was verified and your consultation request was recorded.','#case-invoices'],
   idea_accepted:['The team accepted your selected invention.','#case-activity'],
   idea_declined:['The team posted its decision on your selected invention.','#case-activity'],
@@ -88,6 +92,9 @@ const noticeEvents = {
   services_completed:['The official publication notice is available.','#case-documents'],
   completion_fee_waived:['The team recorded settlement of the remaining balance.','#case-activity'],
 };
+
+export const caseEventText = event => event.event_type === 'team_update_extended' ? extensionNotice
+  : event.event_type.replaceAll('_',' ');
 
 export function caseNotifications(c) {
   if (!Number.isSafeInteger(c.client_seen_revision)) return '';

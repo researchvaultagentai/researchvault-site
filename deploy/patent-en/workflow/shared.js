@@ -100,5 +100,5 @@ export function fileForm(category, file, password) {
   return data;
 }
 
-export const timeline = events => events?.length ? '<ol reversed>' + events.map(event =>
-  `<li${Number.isSafeInteger(event.revision) ? ` value="${event.revision+1}"` : ''}>${esc(event.event_type.replaceAll('_',' '))} · <time>${esc(when(event.created_at))}</time></li>`).join('') + '</ol>' : '<p class="quiet">No events yet.</p>';
+export const timeline = (events, label = event => event.event_type.replaceAll('_',' ')) => events?.length ? '<ol reversed>' + events.map(event =>
+  `<li${Number.isSafeInteger(event.revision) ? ` value="${event.revision+1}"` : ''}>${esc(label(event))} · <time>${esc(when(event.created_at))}</time></li>`).join('') + '</ol>' : '<p class="quiet">No events yet.</p>';

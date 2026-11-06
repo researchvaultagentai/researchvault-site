@@ -83,3 +83,5 @@ fieldset{border:1px solid var(--line);border-radius:9px;margin-block:12px}legend
 :is(#case-invoices,#case-drafts,#case-quote,#idea,#filing,#filing-consent){scroll-margin-top:20px}
 
 .guide-video{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.guide-video>div{flex:1 1 260px}.guide-video video{display:block;width:min(100%,240px);height:auto;border-radius:10px;background:#12251a}
+
+.checkout-address{overflow-wrap:anywhere;user-select:all}

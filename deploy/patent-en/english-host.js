@@ -33,10 +33,10 @@
     const portals = document.querySelectorAll('[data-pct-client-portal]');
     const starts = document.querySelectorAll('[data-pct-workflow="start"]');
     for (const link of portals) link.href = target;
+    for (const link of starts) link.href = `${workflow}?new=1`;
     if (portals.length || starts.length) void workflowEnabled().then(enabled => {
       if (!enabled) return;
       for (const link of portals) link.href = workflow;
-      for (const link of starts) link.href = `${workflow}?new=1`;
       for (const element of document.querySelectorAll('[data-pct-enabled-copy]')) element.textContent = element.dataset.pctEnabledCopy;
     });
   }

@@ -54,12 +54,11 @@ export async function onRequest({ request, env }) {
   }
   try {
     if (url.pathname.startsWith('/api/pct/')) {
-      if (!env.PCT_WORKFLOW?.fetch) return failure(503, 'The new PCT workflow is not connected yet');
+      if (!env.PCT_WORKFLOW?.fetch) return failure(503, 'The PCT portal is not connected yet');
       return await env.PCT_WORKFLOW.fetch(request);
     }
-    if (request.method === 'POST' && url.pathname.replace(/\/$/, '') === '/api/cases' && env.PCT_WORKFLOW?.fetch) {
-      const status = await pctStatus(env);
-      if (status.ok && (await status.json()).enabled) return failure(409, 'Open new cases from the upgraded PCT client portal');
+    if (request.method === 'POST' && url.pathname.replace(/\/$/, '') === '/api/cases') {
+      return failure(409, 'Open your application in the PCT portal.');
     }
     if (!env.PATENT_API?.fetch) return failure(503, 'Patent portal is not connected yet');
     if (url.pathname === '/api/international-payments/receipts') {
