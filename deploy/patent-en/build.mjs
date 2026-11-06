@@ -9,6 +9,8 @@ export const ORIGIN = 'https://researchvault-patent.pages.dev';
 const assets = [
   'patent/assets/patent.css', 'patent/assets/patent.js', 'patent/assets/pct-landing.css',
   'patent/assets/pct-landing.js', 'patent/assets/pct-patent-agent.webp',
+  'patent/assets/pct-portal-walkthrough.mp4', 'patent/assets/pct-portal-walkthrough.jpg',
+  'patent/assets/pct-portal-walkthrough.vtt',
   'patent/assets/dashboard-en.js',
   'patent/assets/intake-en.js', 'patent/assets/signature.js',
   'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js', 'assets/rv-pct-support.js',
@@ -65,7 +67,7 @@ async function copyEnglishPages(directory = 'patent/en') {
 
       // The home page moves to /. Resolve its original relative asset/link URLs
       // against its old directory; the remaining portal routes retain their paths.
-      html = html.replace(/\b(href|src)="([^"]+)"/g, (all, attr, value) => {
+      html = html.replace(/\b(href|src|poster)="([^"]+)"/g, (all, attr, value) => {
         if (/^(?:[a-z][a-z0-9+.-]*:|\/|#)/i.test(value)) return all;
         const resolved = new URL(value.replaceAll('&amp;', '&'), ORIGIN + '/patent/en/');
         return `${attr}="${(resolved.pathname + resolved.search + resolved.hash).replaceAll('&', '&amp;')}"`;

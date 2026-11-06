@@ -37,7 +37,7 @@ test('every static local link and asset resolves after moving the English home p
   for (const file of emitted.filter(file => file.endsWith('.html'))) {
     const source = await readFile(path.join(output, file), 'utf8');
     const base = ORIGIN + '/' + file.replace(/index\.html$/, '');
-    for (const [, value] of source.matchAll(/(?:href|src)="([^"]+)"/g)) {
+    for (const [, value] of source.matchAll(/(?:href|src|poster)="([^"]+)"/g)) {
       if (value.startsWith('#')) continue;
       const url = new URL(value.replaceAll('&amp;', '&'), base);
       assert.doesNotMatch(url.hostname, /(?:^|\.)researchvaultagent\.ir$/i, file + ' -> ' + value);
@@ -70,6 +70,16 @@ test('copied agreements and shared runtime remain byte-identical to the existing
     assert.ok(config > 0 && config < html.indexOf('/patent.js"'), file);
   }
   assert.deepEqual(JSON.parse(await readFile(path.join(output, '_routes.json'), 'utf8')), { version: 1, include: ['/api/*', '/support/*'], exclude: [] });
+});
+
+test('the English landing includes the original walkthrough and its English captions', async () => {
+  for (const suffix of ['mp4', 'jpg', 'vtt']) {
+    const file = 'patent/assets/pct-portal-walkthrough.' + suffix;
+    assert.deepEqual(await readFile(path.join(output, file)), await readFile(path.join(root, file)), file);
+  }
+  const home = await readFile(path.join(output, 'index.html'), 'utf8');
+  assert.match(home, /<video[^>]+controls playsinline muted preload="none"/);
+  assert.match(home, /<track kind="captions" src="\/patent\/assets\/pct-portal-walkthrough\.vtt" srclang="en" label="English" default>/);
 });
 
 test('portal entry uses login for guests, preserves an older case, and rejects open redirects', async () => {

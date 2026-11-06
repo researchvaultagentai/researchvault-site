@@ -100,22 +100,51 @@
     linear-gradient(0deg, #0b2317bf, transparent 28%);
   pointer-events: none;
 }
-.pct-slide-blueprint {
-  background:
-    radial-gradient(ellipse at 80% 45%, #72d32630, transparent 58%),
-    linear-gradient(#b8ef7f12 1px, transparent 1px),
-    linear-gradient(90deg, #b8ef7f12 1px, transparent 1px),
-    var(--pct-dark);
-  background-size: auto, 40px 40px, 40px 40px, auto;
+.pct-gallery-media[data-pct-video-active] { touch-action: auto; }
+.pct-slide-video {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: clamp(82px, 8vw, 110px) 3% 16px 56%;
+  background: radial-gradient(ellipse at 76% 48%, #72d32630, transparent 54%);
 }
-.pct-slide-blueprint::after {
-  content: "";
+.pct-video-frame {
+  position: relative;
+  height: 100%;
+  max-height: 74vh;
+  aspect-ratio: 9 / 16;
+  border-radius: 12px;
+  background: #071b13;
+  box-shadow: 0 0 0 1px #b8ef7f54;
+}
+.pct-video-frame video, .pct-video-fallback {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #17351b 15%, #17351b 32%, #17351b85 45%, transparent 60%);
-  pointer-events: none;
+  border-radius: inherit;
 }
-.pct-blueprint { position: absolute; inset-block: 0; inset-inline-end: 0; width: 60%; height: 100%; }
+.pct-video-frame video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pct-video-fallback {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  text-align: center;
+  background: linear-gradient(#071b1377, #071b13ef), url("./pct-portal-walkthrough.jpg") center / cover, #071b13;
+}
+.pct-video-fallback[hidden] { display: none; }
+.pct-video-fallback:not([hidden]) + video { visibility: hidden; }
+.pct-video-fallback button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 100px;
+  background: var(--pct-bright);
+  color: var(--pct-dark);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
 .pct-gallery-controls {
   position: absolute;
   z-index: 2;
@@ -150,15 +179,10 @@
 .pct-gallery-controls button:hover { background: var(--pct-bright); color: var(--pct-dark); }
 .pct-gallery-controls svg { width: 20px; height: 20px; }
 .pct-rotate:not([data-pct-rotating]) .pct-pause-icon, .pct-rotate[data-pct-rotating] .pct-play-icon { display: none; }
-.pct-paper { transform-box: fill-box; transform-origin: center; }
 @media (prefers-reduced-motion: no-preference) {
-  .pct-slide-enter :is(.pct-blueprint, img) { animation: pct-visual-in .34s ease-out; }
-  .pct-slide-enter .pct-trace { stroke-dasharray: 1; animation: pct-draw 1.8s cubic-bezier(.22,.61,.36,1) both; }
-  .pct-slide-enter .pct-paper { animation: pct-paper-enter .9s cubic-bezier(.22,.61,.36,1) both; }
+  .pct-slide-enter img { animation: pct-visual-in .34s ease-out; }
 }
 @keyframes pct-visual-in { from { transform: translateX(7px); } to { transform: translateX(0); } }
-@keyframes pct-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-@keyframes pct-paper-enter { from { transform: translateY(8px); } to { transform: translateY(0); } }
 
 .pct-summary {
   display: grid;
@@ -360,11 +384,16 @@
   .pct-hero h1 { font-size: clamp(2.7rem, 8.7vw, 4.6rem); }
   .pct-gallery, .pct-gallery-media { position: relative; inset: auto; }
   .pct-gallery-media { aspect-ratio: 16 / 9; max-height: 380px; }
+  .pct-gallery-media[data-pct-video-active] {
+    aspect-ratio: auto;
+    height: clamp(300px, 148vw, 530px);
+    height: clamp(300px, 148vw, min(530px, 72svh));
+    max-height: none;
+  }
   .pct-hero-light, .pct-stars-hero { mask-image: none; }
   .pct-slide-robot img { object-position: 60% 48%; }
   .pct-slide-robot::after { background: linear-gradient(0deg, #17351b 0%, #17351b0a 32%, transparent 50%); }
-  .pct-slide-blueprint::after { background: linear-gradient(0deg, #17351b 0%, transparent 22%); }
-  .pct-blueprint { width: 100%; }
+  .pct-slide-video { padding: 14px; }
   .pct-gallery-controls {
     position: relative;
     inset: auto;
