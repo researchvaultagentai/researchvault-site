@@ -16,7 +16,7 @@ async function pctStatus(env) {
     if (env.PCT_WORKFLOW?.fetch) {
       // The health request carries no session, credentials or caller input.
       const upstream = await env.PCT_WORKFLOW.fetch(new Request(PRODUCTION_ORIGIN + PCT_STATUS_PATH, {
-        redirect: 'error',
+        redirect: 'manual',
       }));
       if (upstream.ok) result = await upstream.json();
     }
