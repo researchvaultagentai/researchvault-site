@@ -99,8 +99,10 @@ test('portal entry uses login for guests, preserves an older case, and rejects o
 
 test('a ready private workflow takes the current portal links while an earlier case keeps its route', async () => {
   const portal = { href: '' }, start = { href: '' };
+  const copy = { textContent: 'Sign the NDA', dataset: { pctEnabledCopy: 'Receive the signed confidentiality undertaking' } };
   const window = { location: { origin: ORIGIN } };
-  const document = { querySelectorAll: selector => selector === '[data-pct-client-portal]' ? [portal] : [start] };
+  const targets = { '[data-pct-client-portal]': [portal], '[data-pct-workflow="start"]': [start], '[data-pct-enabled-copy]': [copy] };
+  const document = { querySelectorAll: selector => targets[selector] ?? [] };
   let calls = 0;
   const fetch = async (url, options) => {
     calls++;
@@ -114,9 +116,11 @@ test('a ready private workflow takes the current portal links while an earlier c
   const routes = window.PatentEnglish;
   routes.applySession(null);
   assert.match(portal.href, /\/account\/\?next=/);
+  assert.equal(copy.textContent, 'Sign the NDA');
   assert.equal(await routes.workflowEnabled(), true);
   assert.equal(portal.href, '/patent/en/workflow/');
   assert.equal(start.href, '/patent/en/workflow/?new=1');
+  assert.equal(copy.textContent, 'Receive the signed confidentiality undertaking');
   assert.equal(calls, 1);
   const earlier = new URL(routes.signIn(routes.dashboard + '?case=legacy-1', true), ORIGIN);
   assert.equal(earlier.searchParams.get('earlier'), '1');

@@ -7,6 +7,7 @@ preview_urls = false
 [vars]
 ENVIRONMENT = "production"
 PCT_ORIGIN = "https://researchvault-patent.pages.dev"
+PCT_ENABLED = "false"
 # Configure the private, versioned undertaking/agreement keys and separate PCT_DB
 # before activation. Keep B2 credentials, encryption key and admin IDs in secrets.
 # PATENT_API must bind the existing account worker for first-party OTP sessions.

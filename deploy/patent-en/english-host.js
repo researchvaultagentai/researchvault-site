@@ -37,6 +37,7 @@
       if (!enabled) return;
       for (const link of portals) link.href = workflow;
       for (const link of starts) link.href = `${workflow}?new=1`;
+      for (const element of document.querySelectorAll('[data-pct-enabled-copy]')) element.textContent = element.dataset.pctEnabledCopy;
     });
   }
 
