@@ -50,15 +50,25 @@ export async function createCase(db, user, state, requestId) {
   return caseById(db, id, user);
 }
 
-export async function save(db, row, actor, type, detail = {}, notify = false) {
+export async function save(db, row, actor, type, detail = {}, notify = false, publication = null) {
   const t = nowSec();
   const ev = { type, actor, notify: notify ? 1 : 0, ...detail };
   row.state.team_updates = pendingTeamUpdates(row.state);
+  if (row.state.team_update_extensions) {
+    const active = new Set(row.state.team_updates.map(item => item.task_key));
+    const extensions = Object.entries(row.state.team_update_extensions).filter(([key]) => active.has(key));
+    if (extensions.length) row.state.team_update_extensions = Object.fromEntries(extensions);
+    else delete row.state.team_update_extensions;
+  }
   const res = await db.prepare(`UPDATE pct_cases SET stage=?,state_json=?,revision=revision+1,
     completion_due=?,event_json=?,updated_at=?,team_updates_indexed=1
-    WHERE id=? AND revision=? AND stage<>'wipe_pending' RETURNING revision`)
+    WHERE id=? AND revision=? AND stage<>'wipe_pending'
+    AND (? IS NULL OR EXISTS (SELECT 1 FROM pct_admin_publications
+      WHERE case_id=pct_cases.id AND revision=pct_cases.revision AND telegram_actor=? AND nonce=? AND expires_at>=?))
+    RETURNING revision`)
     .bind(row.state.stage, JSON.stringify(row.state), outstandingCompletion(row.state) ? 1 : 0,
-      JSON.stringify(ev), t, row.id, row.revision).first();
+      JSON.stringify(ev), t, row.id, row.revision, publication?.nonce ?? null,
+      publication?.actor ?? null, publication?.nonce ?? null, t).first();
   ensure(res?.revision === row.revision + 1, 'The case changed. Refresh it and try again.', 409, 'case_changed');
   return { ...row, stage: row.state.stage, updated_at: t, revision: row.revision + 1 };
 }
@@ -79,7 +89,14 @@ export async function adminList(db, offset) {
   return { cases: rows.results.slice(0, 10), more: rows.results.length > 10 };
 }
 
-export async function newAdminLink(db, caseId, actor, origin) {
+export async function adminTasks(db, offset) {
+  const rows=await db.prepare(`SELECT c.id,c.public_ref,c.stage,MIN(t.due_at) AS due_at
+    FROM pct_team_updates t JOIN pct_cases c ON c.id=t.case_id
+    WHERE c.stage<>'wipe_pending' GROUP BY c.id ORDER BY due_at,c.id LIMIT 11 OFFSET ?`).bind(offset).all();
+  return {cases:rows.results.slice(0,10),more:rows.results.length>10};
+}
+
+export async function newAdminLink(db, caseId, actor, origin, focused = false) {
   await caseById(db, caseId);
   const token = randomToken(24), t = nowSec();
   await db.batch([
@@ -87,7 +104,7 @@ export async function newAdminLink(db, caseId, actor, origin) {
     db.prepare('INSERT INTO pct_admin_links(token_hash,case_id,telegram_actor,expires_at) VALUES(?,?,?,?)')
       .bind(await sha256Hex(token), caseId, actor, t + 600),
   ]);
-  return `${origin}/patent/en/case-admin/#${token}`;
+  return `${origin}/patent/en/case-admin/${focused?'?task=stage':''}#${token}`;
 }
 
 export async function redeemAdminLink(db, token, user) {
@@ -158,10 +175,26 @@ export async function acknowledgeNotification(db, id, lease) {
 
 export async function requireAdminGrant(db, token, user, caseId) {
   ensure(/^[a-f0-9]{48}$/.test(token || ''), 'Open this case from its private Telegram link.', 403, 'invalid_admin_link');
-  const row = await db.prepare(`SELECT 1 FROM pct_admin_links
+  const row = await db.prepare(`SELECT telegram_actor FROM pct_admin_links
     WHERE token_hash=? AND case_id=? AND redeemed_by=? AND expires_at>=?`)
     .bind(await sha256Hex(token), caseId, user, nowSec()).first();
   ensure(row, 'This admin link has expired or belongs to another case.', 403, 'invalid_admin_link');
+  return row;
+}
+
+export async function stagePublication(db,row,actor,body) {
+  const result=await db.prepare(`INSERT INTO pct_admin_publications(case_id,telegram_actor,revision,nonce,action_json,expires_at)
+    SELECT id,?,revision,?,?,? FROM pct_cases WHERE id=? AND revision=? AND stage<>'wipe_pending'
+    ON CONFLICT(case_id,telegram_actor) DO UPDATE SET revision=excluded.revision,
+      nonce=excluded.nonce,action_json=excluded.action_json,expires_at=excluded.expires_at`)
+    .bind(actor,randomToken(8),JSON.stringify(body),nowSec()+3600,row.id,row.revision).run();
+  ensure(result.meta.changes===1, 'The case changed. Refresh it and try again.',409,'case_changed');
+}
+
+export async function preparedPublication(db,row,actor) {
+  const draft=await db.prepare(`SELECT nonce,action_json FROM pct_admin_publications
+    WHERE case_id=? AND telegram_actor=? AND revision=? AND expires_at>=?`).bind(row.id,actor,row.revision,nowSec()).first();
+  return draft ? { nonce:draft.nonce, body:JSON.parse(draft.action_json) } : null;
 }
 
 export async function caseLog(db,id,offset){

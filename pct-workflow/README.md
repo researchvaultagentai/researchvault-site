@@ -54,7 +54,7 @@ Update the existing private release with the same Wrangler login. The helper che
 )
 ```
 
-This preserves the existing encryption and storage keys and keeps enrollment closed. In the private admin chat, **Patent Queue → Select a PCT case** then confirms the connection and shows case status while closed. Regular case actions, one-time document links, and notifications become available only when enrollment is enabled. No customer files or payments are needed for this connection check.
+This preserves the existing encryption and storage keys and keeps enrollment closed. In the private admin chat, **PCT** then confirms the connection and shows case status while closed. Regular case actions, one-time document links, and notifications become available only when enrollment is enabled. No customer files or payments are needed for this connection check.
 
 ### Admin case wipe
 
@@ -73,3 +73,26 @@ The preparation and response targets are service estimates, not official PCT tim
 ### Team update targets
 
 Run `node pct-workflow/scripts/release.mjs enable-response-timing ../rv-pct-private-release` to apply the additive response schedule and enable it while keeping enrollment closed and preserving case wipe. The private Telegram bot’s existing notice check claims one reminder per open task beginning 24 hours before its 72-hour update target. Completed actions and removed cases cannot be claimed. If the bot was offline, the next check can still send the reminder while time remains. Overdue actions appear in the portal. Deploy the updated bot before enabling response timing. Customer actions and notices become available when the PCT workflow is opened separately. The client portal distinguishes a communication target from the actual deliverable deadline and from official processing. A substantive update posted in the private case can answer a message or start the next communication window for ongoing team work.
+
+### International USDT checkout
+
+Configure two secrets on the private `researchvault-pct-workflow` Worker. Set
+`PCT_USDT_ADDRESSES` to a comma-separated list of fresh public TRON receiving
+addresses controlled in SafePal. Use a dedicated address for each invoice and
+never provision an address previously shown for an unrelated payment. Set
+`PCT_TRONGRID_API_KEY` to the mainnet TronGrid API key. The checkout receives
+funds directly at those addresses. It uses no wallet seed, spending key, or
+Iranian payment service.
+
+Run `node pct-workflow/scripts/release.mjs enable-usdt ../rv-pct-private-release`
+from the authenticated deployment computer. This verifies the existing private
+release, applies the additive schema and enables checkout while enrollment
+remains closed. Deploy the bot and international Pages versions for their matching
+controls. Replenish the pool by including existing and additional addresses in
+the secret. Allocated addresses are never issued to another invoice.
+
+Checkout verifies exact confirmed USDT transfers on TRON and settles them
+through the existing case and notification transaction. An open checkout is
+checked from the browser and by the bot's private scheduled queue. A missing
+address or an ambiguous transfer remains unresolved and does not advance the
+case. Use synthetic data and a mocked TRON response for development.

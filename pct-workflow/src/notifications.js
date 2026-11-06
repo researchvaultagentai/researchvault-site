@@ -20,6 +20,7 @@ function noticeText(n) {
 const labels={
   consultation_requested:'پرداخت مشاوره تأیید شد؛ درخواست جلسه ثبت شد.',
   payment_confirmed:'پرداخت تأیید شد.',
+  usdt_payment_review:'پرداخت USDT نیاز به بررسی دارد.',
   submit_receipt:'رسید پرداخت در انتظار بررسی است.',
   idea_selected:'مشتری ایده نهایی خود را ثبت کرد.',
   agreement_signed:'قرارداد و مبلغ‌ها با OTP تأیید شد.',
