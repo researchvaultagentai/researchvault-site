@@ -173,6 +173,26 @@ test('website support passes only the active service facts to the model', async 
   }
 });
 
+test('the international model gets the latest agreement milestones within the existing budget', async t => {
+  const { service, calls } = fixture(t);
+  const history = Array.from({ length: 6 }, (_, i) => ({ role: 'user', content: `${i} ` + 'ر'.repeat(490) }));
+  const result = await service.chat({ message: 'Could you outline the overall journey?', language: 'fa', scope: 'patent_pct', history });
+  assert.equal(result.source, 'assistant');
+  assert.equal(calls.length, 1);
+  const messages = calls[0].input.messages;
+  const prompt = messages[0].content;
+  assert.match(prompt, /Reply only in Persian/);
+  assert.match(prompt, /USD 111.*USD 555.*USD 445/);
+  assert.match(prompt, /USD 3,500–5,500/);
+  assert.match(prompt, /Track Changes/);
+  assert.match(prompt, /fresh email code/);
+  assert.match(prompt, /capped at USD 750/);
+  assert.match(prompt, /waiver.*zero/);
+  assert.doesNotMatch(prompt, /4,500–7,000|researchvaultagent\.ir/);
+  assert.ok(new TextEncoder().encode(JSON.stringify(messages)).length <= 9000);
+  assert.equal(messages.at(-1).content, 'Could you outline the overall journey?');
+});
+
 test('cross-branch model output is replaced with the active branch contact', async t => {
   for (const [scope, output] of [
     ['articles', 'A patent report costs USD 1,111.'],
@@ -250,7 +270,7 @@ test('international phase questions state the exclusion without importing anothe
     const reply = await service.chat({ message, language, scope: 'patent_pct' });
     assert.equal(reply.source, 'service_guide');
     assert.equal(reply.reply, faqAnswer('scope', language, 'patent_pct'));
-    assert.match(reply.reply, language === 'en' ? /outside the base agreement/ : /خارج از محدوده قرارداد پایه/);
+    assert.match(reply.reply, language === 'en' ? /outside the base agreement/ : /در قرارداد پایه نیست/);
     assert.equal(calls.length, 0);
   }
 });
