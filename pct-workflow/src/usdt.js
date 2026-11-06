@@ -1,16 +1,18 @@
-import { nowSec, sha256Hex } from '../../patent-api/src/security.js';
+import { nowSec, randomToken, sha256Hex } from '../../patent-api/src/security.js';
 import { ensure, labels, settle } from './state.js';
 import { caseById, save } from './repository.js';
+import { USDT } from '../../deploy/patent-en/payments-config.js';
 
 const TRONGRID = 'https://api.trongrid.io';
-const USDT = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
 const USDT_HEX = 'a614f803b6fd780986a42c78ec9c7f77e6ded13c';
 const TRANSFER = 'ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 const TX = /^[a-f0-9]{64}$/;
 const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const ADDRESS_CHECKOUTS = 'pct_usdt_checkouts';
+const REFERENCE_CHECKOUTS = 'pct_usdt_reference_checkouts';
 
 export const usdtEnabled = env => env.PCT_USDT_ENABLED === 'true' &&
-  Boolean(env.PCT_USDT_ADDRESSES?.trim() && env.PCT_TRONGRID_API_KEY?.trim());
+  Boolean(env.PCT_TRONGRID_API_KEY?.trim());
 
 export async function tronAddressHex(address) {
   if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) return null;
@@ -24,21 +26,16 @@ export async function tronAddressHex(address) {
   return hex.slice(2,42);
 }
 
-async function addresses(env) {
-  const pool = [...new Set(env.PCT_USDT_ADDRESSES.trim().split(/[\s,]+/))];
-  ensure(pool.length <= 500, 'USDT checkout is unavailable. Contact ResearchVault.',503,'checkout_unavailable');
-  const valid = await Promise.all(pool.map(tronAddressHex));
-  ensure(valid.every(Boolean), 'USDT checkout is unavailable. Contact ResearchVault.',503,'checkout_unavailable');
-  return pool;
-}
-
-function findCheckout(db,id,key) {
-  return db.prepare('SELECT * FROM pct_usdt_checkouts WHERE case_id=? AND milestone=?').bind(id,key).first();
+async function findCheckout(db,id,key) {
+  const read=table=>db.prepare(`SELECT * FROM ${table} WHERE case_id=? AND milestone=?`).bind(id,key).first();
+  return await read(REFERENCE_CHECKOUTS) || await read(ADDRESS_CHECKOUTS);
 }
 
 function publicCheckout(checkout) {
-  return { address:checkout.address, amount_cents:checkout.amount_cents, network:'TRON (TRC20)',
-    status:checkout.review_required ? 'review_required' : 'awaiting_transfer' };
+  const {address,amount_cents,reference,txid,issue,review_required}=checkout;
+  return {address,amount_cents,network:USDT.network,
+    ...(reference ? {reference,txid} : {}),
+    status:issue || (review_required?'review_required':txid?'checking_transfer':'awaiting_transfer')};
 }
 
 export async function openCheckout(env,row,key,at=nowSec()) {
@@ -50,15 +47,16 @@ export async function openCheckout(env,row,key,at=nowSec()) {
   const db = env.PCT_DB;
   const previous = await findCheckout(db,row.id,key);
   if (previous) return publicCheckout(previous);
-  const pool = await addresses(env);
-  const created = await db.prepare(`INSERT INTO pct_usdt_checkouts(case_id,milestone,address,amount_cents,started_at,next_check_at)
-    SELECT ?,?,pool.value,?,?,? FROM json_each(?) pool
-    WHERE NOT EXISTS (SELECT 1 FROM pct_usdt_used_addresses used WHERE used.address=pool.value)
-    AND EXISTS (SELECT 1 FROM pct_cases WHERE id=? AND revision=? AND stage<>'wipe_pending')
-    ORDER BY pool.key LIMIT 1 ON CONFLICT(case_id,milestone) DO NOTHING RETURNING *`)
-    .bind(row.id,key,invoice.amount_cents,at,at,JSON.stringify(pool),row.id,row.revision).first();
+  ensure(await tronAddressHex(USDT.address),'USDT checkout is unavailable. Contact ResearchVault.',503,'checkout_unavailable');
+  // The memo is public on TRON. It must contain no case or client data.
+  const reference='RVPCT-'+randomToken(12);
+  const created = await db.prepare(`INSERT INTO pct_usdt_reference_checkouts(
+    case_id,milestone,address,reference,amount_cents,started_at,next_check_at)
+    SELECT id,?,?,?,?,?,? FROM pct_cases WHERE id=? AND revision=? AND stage<>'wipe_pending'
+    ON CONFLICT(case_id,milestone) DO NOTHING RETURNING *`)
+    .bind(key,USDT.address,reference,invoice.amount_cents,at,at,row.id,row.revision).first();
   const checkout = created || await findCheckout(db,row.id,key);
-  ensure(checkout, 'No USDT checkout address is available. Contact ResearchVault before sending funds.',503,'checkout_unavailable');
+  ensure(checkout,'The invoice changed. Refresh your case and open checkout again.',409,'case_changed');
   return publicCheckout(checkout);
 }
 
@@ -100,14 +98,14 @@ async function tronJSON(env,url,fetcher,body) {
   return JSON.parse(text+decoder.decode());
 }
 
-async function verifiedTransfer(env,checkout,fetcher) {
+async function verifyAddressTransfer(env,checkout,fetcher) {
   const url=new URL(`/v1/accounts/${checkout.address}/transactions/trc20`,TRONGRID);
-  url.search=new URLSearchParams({only_confirmed:'true',only_to:'true',contract_address:USDT,
+  url.search=new URLSearchParams({only_confirmed:'true',only_to:'true',contract_address:USDT.contract,
     min_timestamp:String(checkout.started_at*1000),limit:'20'});
   const history=await tronJSON(env,url,fetcher);
   if (history?.success!==true || !Array.isArray(history.data)) throw new Error('tron_unavailable');
   const incoming=history.data.filter(entry=>entry?.type==='Transfer' && entry.to===checkout.address &&
-    entry.token_info?.address===USDT && Number.isSafeInteger(entry.block_timestamp) &&
+    entry.token_info?.address===USDT.contract && Number.isSafeInteger(entry.block_timestamp) &&
     entry.block_timestamp>=checkout.started_at*1000 && TX.test(entry.transaction_id || '') &&
     /^\d{1,30}$/.test(entry.value || ''));
   const exact=incoming.filter(entry=>BigInt(entry.value)===BigInt(checkout.amount_cents)*10000n);
@@ -122,15 +120,34 @@ async function verifiedTransfer(env,checkout,fetcher) {
   return matchingReceipt(receipt,txid,checkout,recipient) ? {txid} : {};
 }
 
-function nextCheck(db,at,caseId,key) {
-  return db.prepare(`UPDATE pct_usdt_checkouts SET next_check_at=? WHERE address=(
-    SELECT p.address FROM pct_usdt_checkouts p JOIN pct_cases c ON c.id=p.case_id
-    WHERE p.next_check_at<=? AND c.stage<>'wipe_pending'
+async function verifyReferencedTransfer(env,checkout,fetcher) {
+  const body={value:checkout.txid};
+  const transaction=await tronJSON(env,TRONGRID+'/walletsolidity/gettransactionbyid',fetcher,body);
+  if (transaction?.txID?.toLowerCase()!==checkout.txid) return {};
+  const memo=Array.from(new TextEncoder().encode(checkout.reference),byte=>byte.toString(16).padStart(2,'0')).join('');
+  if (transaction.raw_data?.data?.toLowerCase()!==memo) return {issue:'reference_mismatch'};
+  const receipt=await tronJSON(env,TRONGRID+'/walletsolidity/gettransactioninfobyid',fetcher,body);
+  if (receipt?.id?.toLowerCase()!==checkout.txid) return {};
+  const recipient=await tronAddressHex(checkout.address);
+  if (!recipient) throw new Error('invalid_checkout_address');
+  return matchingReceipt(receipt,checkout.txid,checkout,recipient) ? {txid:checkout.txid} : {review:true};
+}
+
+function nextCheck(db,table,at,caseId,key) {
+  const submitted=table===REFERENCE_CHECKOUTS?'AND p.txid IS NOT NULL AND p.issue IS NULL':'';
+  return db.prepare(`UPDATE ${table} SET next_check_at=? WHERE (case_id,milestone)=(
+    SELECT p.case_id,p.milestone FROM ${table} p JOIN pct_cases c ON c.id=p.case_id
+    WHERE p.next_check_at<=? AND c.stage<>'wipe_pending' ${submitted}
     AND (? IS NULL OR p.case_id=?) AND (? IS NULL OR p.milestone=?)
     AND json_extract(c.state_json,'$.invoices.'||p.milestone||'.status')='issued'
     AND json_extract(c.state_json,'$.invoices.'||p.milestone||'.receipt') IS NULL
-    ORDER BY p.next_check_at,p.address LIMIT 1) RETURNING *`)
+    ORDER BY p.next_check_at,p.case_id,p.milestone LIMIT 1) RETURNING *`)
     .bind(at+45,at,caseId,caseId,key,key).first();
+}
+
+function markIssue(db,checkout,issue) {
+  return db.prepare(`UPDATE pct_usdt_reference_checkouts SET issue=? WHERE case_id=? AND milestone=? AND txid=?`)
+    .bind(issue,checkout.case_id,checkout.milestone,checkout.txid).run();
 }
 
 async function flagReview(db,checkout,at) {
@@ -140,16 +157,20 @@ async function flagReview(db,checkout,at) {
     invoice.usdt_review_at=at;
     await save(db,row,'tron_usdt','usdt_payment_review',{milestone:checkout.milestone},true);
   }
-  await db.prepare('UPDATE pct_usdt_checkouts SET review_required=1 WHERE address=?').bind(checkout.address).run();
+  if (checkout.reference) await markIssue(db,checkout,'review_required');
+  else await db.prepare('UPDATE pct_usdt_checkouts SET review_required=1 WHERE address=?').bind(checkout.address).run();
 }
 
 export async function reconcileCheckout(env,{caseId=null,key=null,at=nowSec(),fetcher=fetch}={}) {
   if (!usdtEnabled(env)) return;
-  const db=env.PCT_DB, checkout=await nextCheck(db,at,caseId,key);
+  const db=env.PCT_DB;
+  const checkout=await nextCheck(db,REFERENCE_CHECKOUTS,at,caseId,key) ||
+    await nextCheck(db,ADDRESS_CHECKOUTS,at,caseId,key);
   if (!checkout) return;
   try {
-    const result=await verifiedTransfer(env,checkout,fetcher);
+    const result=await (checkout.reference ? verifyReferencedTransfer : verifyAddressTransfer)(env,checkout,fetcher);
     if (!result.txid) {
+      if (result.issue) await markIssue(db,checkout,result.issue);
       if (result.review) await flagReview(db,checkout,at);
       return;
     }
@@ -174,15 +195,23 @@ export async function reconcileCheckout(env,{caseId=null,key=null,at=nowSec(),fe
   }
 }
 
-export async function checkCheckout(env,row,key) {
+export async function checkCheckout(env,row,key,submittedTxid,{at=nowSec(),fetcher=fetch}={}) {
+  ensure(usdtEnabled(env), 'USDT checkout is currently unavailable.',503,'checkout_unavailable');
   ensure(Object.hasOwn(labels,key) && row.state.invoices[key], 'Invoice not found.',404,'not_found');
-  if (row.state.invoices[key].status==='paid') return {status:'paid'};
-  const checkout=await findCheckout(env.PCT_DB,row.id,key);
-  ensure(checkout, 'Open the USDT checkout first.',409,'checkout_unavailable');
-  await reconcileCheckout(env,{caseId:row.id,key});
-  const current=await caseById(env.PCT_DB,row.id,row.user_id);
+  const invoice=row.state.invoices[key];
+  if (invoice.status==='paid') return {status:'paid'};
+  const db=env.PCT_DB, checkout=await findCheckout(db,row.id,key);
+  ensure(checkout && invoice.status==='issued' && !invoice.receipt, 'Open the USDT checkout first.',409,'checkout_unavailable');
+  if (submittedTxid!==undefined) {
+    const txid=typeof submittedTxid==='string' ? submittedTxid.trim().toLowerCase() : '';
+    ensure(checkout.reference && TX.test(txid), 'Enter a valid TRON transaction ID.',422,'invalid_receipt');
+    await db.prepare(`UPDATE pct_usdt_reference_checkouts SET txid=?,issue=NULL
+      WHERE case_id=? AND milestone=? AND (txid IS NULL OR txid<>?)`).bind(txid,row.id,key,txid).run();
+  }
+  await reconcileCheckout(env,{caseId:row.id,key,at,fetcher});
+  const current=await caseById(db,row.id,row.user_id);
   if (current.state.invoices[key].status==='paid') return {status:'paid'};
-  const updated=await findCheckout(env.PCT_DB,row.id,key);
+  const updated=await findCheckout(db,row.id,key);
   ensure(updated, 'This checkout is unavailable.',409,'checkout_unavailable');
   return publicCheckout(updated);
 }

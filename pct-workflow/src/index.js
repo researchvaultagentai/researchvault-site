@@ -653,9 +653,9 @@ async function route(req, env) {
     return json({ok:true});
   }
   if (method==='POST' && ['checkout','checkout/check'].includes(action)) {
-    const {milestone}=await input(req);
+    const {milestone,txid}=await input(req);
     S.ensure(typeof milestone==='string', 'Invoice not found.',404,'not_found');
-    return json(await (action==='checkout' ? openCheckout(env,row,milestone) : checkCheckout(env,row,milestone)));
+    return json(await (action==='checkout' ? openCheckout(env,row,milestone) : checkCheckout(env,row,milestone,txid)));
   }
   if (action === 'action' && method === 'POST') return json(await caseView(env, await clientAction(req, env, row, user)));
   if (action === 'documents' && method === 'POST') {
