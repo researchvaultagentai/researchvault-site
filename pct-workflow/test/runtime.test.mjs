@@ -11,6 +11,7 @@ import { putObject } from '../src/files.js';
 import { sha256Hex } from '../../patent-api/src/security.js';
 import { deliverPctNotices } from '../src/notifications.js';
 import { quoteBreakdown } from '../src/state.js';
+import { confirmWipe, lockCaseUpload, unlockCaseUpload } from '../src/wipe.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here,'../..');
 const ORIGIN='http://127.0.0.1:9072';
@@ -54,7 +55,7 @@ const bundle=async entry=>(await build({entryPoints:[path.join(root,entry)],bund
   platform:'browser',write:false,logLevel:'error'})).outputFiles[0].text;
 const module=(name,contents,extra={})=>({name,...opts,modules:[{type:'ESModule',path:name+'.mjs',contents}],...extra});
 async function schema(db, sql) {
-  const statements=sql.trim().split(/;\s*(?=(?:CREATE|PRAGMA|ALTER|$))/).map(s=>s.trim()).filter(Boolean);
+  const statements=sql.replace(/^\s*--[^\n]*$/gm,'').trim().split(/;\s*(?=(?:CREATE|PRAGMA|ALTER|$))/).map(s=>s.trim()).filter(Boolean);
   await db.batch(statements.map(s=>db.prepare(s)));
 }
 function readJson(res) { return res.json().catch(()=>null); }
@@ -75,7 +76,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     plainPdf(),sampleUndertaking(),bytes('locked-report.pdf'),bytes('permissions-only.pdf'),bytes('sample.mp4'),
   ]);
   const docx=makeDocx(), mail=new Map();
-  const vars={...testConfig, PCT_UNDERTAKING_KEY:'pct-workflow/legal/sample-undertaking.pdf',PCT_UNDERTAKING_VERSION:'SAMPLE-1',
+  const vars={...testConfig, PCT_WIPE_ENABLED:'true', PCT_UNDERTAKING_KEY:'pct-workflow/legal/sample-undertaking.pdf',PCT_UNDERTAKING_VERSION:'SAMPLE-1',
     PCT_UNDERTAKING_SHA256:await sha256Hex(ndaPdf), PCT_AGREEMENT_KEY:'pct-workflow/legal/test-agreement.docx',
     PCT_AGREEMENT_VERSION:'TEST-PCT-3', PCT_AGREEMENT_SHA256:await sha256Hex(docx)};
   const edge=`export default {fetch(req,env){const p=new URL(req.url).pathname;
@@ -89,7 +90,9 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     module('prod-guard',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
       bindings:{...prod,...productionDocs}}),
     module('prod-off',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
-      bindings:{...prod,...productionDocs,PCT_ENABLED:'false'}}),
+      bindings:{...prod,...productionDocs,PCT_ENABLED:'false',PCT_WIPE_ENABLED:'false'}}),
+    module('prod-wipe-off',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
+      bindings:{...prod,...productionDocs,PCT_ENABLED:'false',PCT_WIPE_ENABLED:'true'}}),
     module('prod-sample',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},bindings:prod}),
     module('auth',auth,{d1Databases:{DB:'test-identity'},bindings:{ENVIRONMENT:'test',ADMIN_EMAILS:ADMIN,OTP_PEPPER:'test-otp-pepper',
       SESSION_PEPPER:'test-session-pepper',RESEND_API_KEY:'test-key'},outboundService:async req=>{
@@ -105,6 +108,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   await schema(db,sql);
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0002_accounts.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0003_filing_consent_evidence.sql'),'utf8'));
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0004_case_wipe.sql'),'utf8'));
   const identityDb=await mf.getD1Database('DB','auth');
   await schema(identityDb,authSql);
   const files=await mf.getR2Bucket('PCT_STORE','pct');
@@ -386,4 +390,67 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     assert.ok(all.some(x=>x.type===type),type);
   assert.ok(all.some(x=>x.type==='draft_approved' && x.version==='2.0'));
   assert.ok(!JSON.stringify(all).includes('Please improve claim 2.'));
+
+  // Wipe only the first synthetic case; keep its owner's account, second case,
+  // and the legal templates. Exercise an actual failed storage delete and retry.
+  const target=settled.id, case_id=target, caseArgs={case_id}, prefix=`pct-workflow/cases/${target}/`;
+  const targetRef=(await settled.read()).public_ref, retained=`pct-workflow/cases/${waived.id}/retained-fixture`;
+  const nearPrefix=`pct-workflow/cases/${target}x/retained-fixture`;
+  await files.put(prefix+'orphan-fixture','synthetic orphan');
+  await files.put(retained,'synthetic sibling');
+  await files.put(nearPrefix,'synthetic similar prefix');
+  const alreadyPaid=await sha256Hex('synthetic previously settled transfer');
+  await db.prepare('INSERT INTO pct_verified_payment_refs VALUES(?,?,?,?)').bind(alreadyPaid,target,'consultation',1).run();
+  const offWipe=await mf.getWorker('prod-wipe-off');
+  assert.equal((await bot('case',caseArgs,ACTOR,200,offWipe)).can_wipe,true);
+  await bot('wipe-prepare',caseArgs,ACTOR,503,productionOff);
+  await bot('wipe-prepare',caseArgs,'10000',403,offWipe);
+  await post(settled.M+'/wipe',{},admin,{grant:settled.g,expected:404});
+  const cancelled=await bot('wipe-prepare',caseArgs,ACTOR,200,offWipe);
+  assert.equal(cancelled.public_ref,targetRef);
+  assert.ok(cancelled.document_count>1);
+  assert.deepEqual(await bot('wipe-cancel',{...caseArgs,token:cancelled.token},ACTOR,200,offWipe),{cancelled:true});
+  await bot('wipe-confirm',{...caseArgs,token:cancelled.token},ACTOR,409,offWipe);
+  const expired=await bot('wipe-prepare',caseArgs,ACTOR,200,offWipe);
+  await db.prepare('UPDATE pct_case_wipes SET expires_at=1 WHERE case_id=?').bind(target).run();
+  await bot('wipe-confirm',{...caseArgs,token:expired.token},ACTOR,409,offWipe);
+  const stale=await bot('wipe-prepare',caseArgs,ACTOR,200,offWipe);
+  await db.prepare('UPDATE pct_cases SET revision=revision+1,event_json=? WHERE id=?')
+    .bind(JSON.stringify({type:'test_revision',actor:'synthetic'}),target).run();
+  await bot('wipe-confirm',{...caseArgs,token:stale.token},ACTOR,409,offWipe);
+  const current=await bot('wipe-prepare',caseArgs,ACTOR,200,offWipe);
+  await bot('wipe-confirm',{case_id:waived.id,token:current.token},ACTOR,409,offWipe);
+  const row=await db.prepare('SELECT id,revision FROM pct_cases WHERE id=?').bind(target).first();
+  const uploadToken=await lockCaseUpload(db,row);
+  await bot('wipe-confirm',{...caseArgs,token:current.token},ACTOR,409,offWipe);
+  await unlockCaseUpload(db,target,uploadToken);
+  const notice=await db.prepare('SELECT id FROM pct_events WHERE case_id=? AND notify=1 AND notified_at IS NULL LIMIT 1')
+    .bind(target).first();
+  assert.ok(notice);
+  await db.prepare('UPDATE pct_events SET lease_until=unixepoch()+90 WHERE id=?').bind(notice.id).run();
+  await bot('wipe-confirm',{...caseArgs,token:current.token},ACTOR,409,offWipe);
+  await db.prepare('UPDATE pct_events SET lease_until=NULL WHERE id=?').bind(notice.id).run();
+  const broken={list:options=>files.list(options),delete:async()=>{throw new Error('synthetic storage failure');}};
+  const pending=await confirmWipe({PCT_DB:db,PCT_STORE:broken},target,ACTOR,current.token);
+  assert.deepEqual(pending,{state:'pending',reason:'storage_or_database',public_ref:targetRef});
+  assert.equal((await bot('case',caseArgs,ACTOR,200,offWipe)).can_continue_wipe,true);
+  assert.ok((await files.list({prefix})).objects.some(o=>o.key.endsWith('.secret')));
+  await req(settled.C,{cookie:client,expected:404});
+  await req(settled.M,{cookie:admin,grant:settled.g,expected:404});
+  assert.ok(!(await req('/api/pct/cases',{cookie:client})).cases.some(c=>c.id===target));
+  await assert.rejects(lockCaseUpload(db,row),/case changed/);
+  await bot('wipe-continue',{case_id:waived.id},ACTOR,404,offWipe);
+  assert.deepEqual(await bot('wipe-continue',caseArgs,ACTOR,200,offWipe),{state:'deleted',public_ref:targetRef});
+  assert.equal((await files.list({prefix})).objects.length,0);
+  assert.ok(await files.get(retained));
+  assert.ok(await files.get(nearPrefix));
+  assert.ok(await files.get(vars.PCT_UNDERTAKING_KEY));
+  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes']) {
+    assert.equal((await db.prepare(`SELECT count(*) AS n FROM ${table} WHERE case_id=?`).bind(target).first()).n,0,table);
+  }
+  assert.equal(await db.prepare('SELECT id FROM pct_cases WHERE id=?').bind(target).first(),null);
+  await bot('wipe-confirm',{...caseArgs,token:current.token},ACTOR,409,offWipe);
+  assert.equal((await req(waived.C,{cookie:pwdCookie})).stage,'closed_by_agreement');
+  await assert.rejects(db.prepare('INSERT INTO pct_verified_payment_refs VALUES(?,?,?,?)')
+    .bind(alreadyPaid,waived.id,'consultation',1).run(),/pct_payment_already_consumed/);
 });

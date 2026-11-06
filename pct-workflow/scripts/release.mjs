@@ -215,11 +215,14 @@ function activeWorkerSecrets(run, conf, expected) {
   'The active Worker does not match the dedicated PCT release and document settings.');
   check(['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].every(name => get(name,'secret_text')),
     'The active private Worker is missing an encryption or Backblaze secret. Do not replace the original key.');
-  return { hasNotificationToken: Boolean(get('PCT_TELEGRAM_NOTIFY_TOKEN','secret_text')) };
+  return {
+    hasNotificationToken:Boolean(get('PCT_TELEGRAM_NOTIFY_TOKEN','secret_text')),
+    hasAdmin:Boolean(get('PCT_TELEGRAM_ADMIN_IDS','secret_text')),
+    wipeEnabled:get('PCT_WIPE_ENABLED','plain_text')?.text==='true',
+  };
 }
 
-export async function connectAdmin(directory, { admin, token, run = command, fetcher = fetch } = {}) {
-  check(/^\d{1,20}$/.test(admin || ''), 'Enter the Telegram ID of the existing private bot administrator.');
+async function installedPrivateConfig(directory) {
   const dir = await outsideRepository(directory, true);
   const conf = path.join(dir, 'wrangler.json');
   const [vars, secrets, saved, installed] = await Promise.all(
@@ -229,6 +232,12 @@ export async function connectAdmin(directory, { admin, token, run = command, fet
   check(JSON.stringify(saved) === JSON.stringify(expected) && installed.worker === service && installed.enabled === false,
     'This is not the completed disabled PCT installation. Use the original private release folder.');
   await verifyFiles(dir, vars, secrets);
+  return {conf,expected};
+}
+
+export async function connectAdmin(directory, { admin, token, run = command, fetcher = fetch } = {}) {
+  check(/^\d{1,20}$/.test(admin || ''), 'Enter the Telegram ID of the existing private bot administrator.');
+  const {conf,expected}=await installedPrivateConfig(directory);
   let verifiedToken = false;
   if (token && /^\d{6,15}:[a-zA-Z0-9_-]{20,100}$/.test(token)) {
     const r = await fetcher('https://api.telegram.org/bot'+token+'/getMe',
@@ -245,6 +254,19 @@ export async function connectAdmin(directory, { admin, token, run = command, fet
   if (!verifiedToken && !hasNotificationToken) console.log('The existing ResearchVault bot can deliver scheduled notices using its configured token.');
 }
 
+export async function enableWipe(directory,{run=command}={}) {
+  const {conf,expected}=await installedPrivateConfig(directory);
+  const current=activeWorkerSecrets(run,conf,expected);
+  check(current.hasAdmin,'Connect the private Telegram administrator before enabling case wipe.');
+  check(run(['d1','migrations','apply','PCT_DB','--remote'],conf).status===0,
+    'Could not apply the case wipe schema to the dedicated PCT database.');
+  check(run(['deploy','--keep-vars','--var','PCT_WIPE_ENABLED:true'],conf).status===0,
+    'Could not deploy the case wipe Worker. New case enrollment was not opened.');
+  const deployed=activeWorkerSecrets(run,conf,expected);
+  check(deployed.wipeEnabled && deployed.hasAdmin,'The active case wipe configuration could not be verified.');
+  console.log('PCT case wipe is enabled for the private Telegram administrator. Enrollment remains disabled.');
+}
+
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode, ...args] = process.argv.slice(2);
   try {
@@ -254,6 +276,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
     else if (mode === 'connect-admin' && args.length === 1) await connectAdmin(args[0], {
       admin:process.env.PCT_TELEGRAM_ADMIN_ID, token:process.env.PCT_TELEGRAM_NOTIFY_TOKEN,
     });
-    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install or connect-admin with PRIVATE_DIRECTORY.');
+    else if (mode === 'enable-wipe' && args.length === 1) await enableWipe(args[0]);
+    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install, connect-admin or enable-wipe with PRIVATE_DIRECTORY.');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

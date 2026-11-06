@@ -12,20 +12,21 @@ export async function acknowledge(db, user, doc) {
     .bind(user, doc.version, doc.sha256, nowSec()).run();
 }
 
-export async function caseById(db, id, owner = null) {
+export async function caseById(db, id, owner = null, { includeWiping = false } = {}) {
+  const visible = includeWiping && !owner ? '' : " AND stage<>'wipe_pending'";
   const row = owner
-    ? await db.prepare('SELECT * FROM pct_cases WHERE id=? AND user_id=?').bind(id, owner).first()
-    : await db.prepare('SELECT * FROM pct_cases WHERE id=?').bind(id).first();
+    ? await db.prepare(`SELECT * FROM pct_cases WHERE id=? AND user_id=?${visible}`).bind(id, owner).first()
+    : await db.prepare(`SELECT * FROM pct_cases WHERE id=?${visible}`).bind(id).first();
   ensure(row, 'Case not found.', 404, 'not_found');
   return parsed(row);
 }
 
 export const caseList = async (db, owner) => (await db.prepare(
-  'SELECT * FROM pct_cases WHERE user_id=? ORDER BY updated_at DESC LIMIT 100',
+  "SELECT * FROM pct_cases WHERE user_id=? AND stage<>'wipe_pending' ORDER BY updated_at DESC LIMIT 100",
 ).bind(owner).all()).results.map(parsed);
 
 export const debt = (db, owner) => db.prepare(
-  'SELECT id,public_ref FROM pct_cases WHERE user_id=? AND completion_due=1 LIMIT 1',
+  "SELECT id,public_ref FROM pct_cases WHERE user_id=? AND completion_due=1 AND stage<>'wipe_pending' LIMIT 1",
 ).bind(owner).first();
 
 export async function createCase(db, user, state, requestId) {
@@ -37,11 +38,12 @@ export async function createCase(db, user, state, requestId) {
   const res = await db.prepare(`INSERT OR IGNORE INTO pct_cases
     (id,user_id,public_ref,stage,state_json,event_json,created_at,updated_at)
     SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS
-      (SELECT 1 FROM pct_cases WHERE user_id=? AND completion_due=1)`)
+      (SELECT 1 FROM pct_cases WHERE user_id=? AND completion_due=1 AND stage<>'wipe_pending')`)
     .bind(id, user, ref, state.stage, JSON.stringify(state), JSON.stringify({ type: 'case_created', actor: user }), t, t, user).run();
   if (!res.meta.changes) {
     const same = await db.prepare('SELECT * FROM pct_cases WHERE id=? AND user_id=?').bind(id, user).first();
-    if (same) return parsed(same);
+    if (same && same.stage !== 'wipe_pending') return parsed(same);
+    ensure(!same,'This case is being removed. Start a new case with a new request.',409,'case_changed');
     ensure(false, 'Settle the outstanding completion invoice before opening a new case.', 409, 'outstanding_balance');
   }
   return caseById(db, id, user);
@@ -51,7 +53,7 @@ export async function save(db, row, actor, type, detail = {}, notify = false) {
   const t = nowSec();
   const ev = { type, actor, notify: notify ? 1 : 0, ...detail };
   const res = await db.prepare(`UPDATE pct_cases SET stage=?,state_json=?,revision=revision+1,
-    completion_due=?,event_json=?,updated_at=? WHERE id=? AND revision=? RETURNING revision`)
+    completion_due=?,event_json=?,updated_at=? WHERE id=? AND revision=? AND stage<>'wipe_pending' RETURNING revision`)
     .bind(row.state.stage, JSON.stringify(row.state), outstandingCompletion(row.state) ? 1 : 0,
       JSON.stringify(ev), t, row.id, row.revision).first();
   ensure(res?.revision === row.revision + 1, 'The case changed. Refresh it and try again.', 409, 'case_changed');
@@ -81,7 +83,8 @@ export async function newAdminLink(db, caseId, actor, origin) {
 export async function redeemAdminLink(db, token, user) {
   const t = nowSec(), hash = await sha256Hex(token);
   const row = await db.prepare(`UPDATE pct_admin_links SET redeemed_by=?,redeemed_at=?
-    WHERE token_hash=? AND redeemed_at IS NULL AND expires_at>=? RETURNING case_id`)
+    WHERE token_hash=? AND redeemed_at IS NULL AND expires_at>=?
+    AND EXISTS(SELECT 1 FROM pct_cases WHERE id=pct_admin_links.case_id AND stage<>'wipe_pending') RETURNING case_id`)
     .bind(user, t, hash, t).first();
   ensure(row, 'This link is invalid, expired or already used. Request a new link in Telegram.', 403, 'invalid_admin_link');
   return row.case_id;
@@ -91,7 +94,8 @@ export async function claimNotification(db) {
   const t = nowSec(), lease = uid('lease');
   const row = await db.prepare(`UPDATE pct_events SET lease_token=?,lease_until=?
     WHERE id=(SELECT id FROM pct_events WHERE notify=1 AND notified_at IS NULL
-      AND (lease_until IS NULL OR lease_until<?) ORDER BY id LIMIT 1)
+      AND (lease_until IS NULL OR lease_until<?)
+      AND EXISTS(SELECT 1 FROM pct_cases WHERE id=pct_events.case_id AND stage<>'wipe_pending') ORDER BY id LIMIT 1)
     RETURNING id,case_id,event_type,detail_json`).bind(lease, t + 90, t).first();
   if (!row) return null;
   const c = await db.prepare('SELECT public_ref FROM pct_cases WHERE id=?').bind(row.case_id).first();

@@ -38,10 +38,11 @@ async function encrypt(env, key, bytes) {
   return packed;
 }
 
-export async function putObject(env, key, bytes) {
+export async function putObject(env, key, bytes, { signal } = {}) {
   const packed = await encrypt(env, key, bytes);
+  signal?.throwIfAborted();
   if (env.PCT_STORE) await env.PCT_STORE.put(key, packed);
-  else await uploadB2(env, key, packed);
+  else await uploadB2(env, key, packed, {signal});
 }
 
 export async function getObject(env, key) {
@@ -191,7 +192,7 @@ export async function verifyReportPdf(bytes, password) {
     'The supplied password does not open this PDF.', 422, 'incorrect_pdf_password');
 }
 
-export async function uploadFile(req, env, row, admin) {
+export async function prepareUpload(req, row, admin) {
   const rawLength = Number(req.headers.get('content-length') || 0);
   ensure(rawLength <= MAX_VIDEO + 128 * 1024, 'Upload one file at a time, up to 20 MiB.', 413, 'file_too_large');
   let form;
@@ -213,18 +214,21 @@ export async function uploadFile(req, env, row, admin) {
     ensure(duration > 0 && duration <= 420, 'Upload an MP4 video of up to 7 minutes.', 422, 'invalid_video');
   }
   const id = uid('doc'), key = `pct-workflow/cases/${row.id}/${id}`;
-  let passwordKey = null;
+  let passwordKey = null, password = null;
   if (category === 'report_pdf') {
-    const password = form.get('password');
+    password = form.get('password');
     await verifyReportPdf(bytes, password);
     passwordKey = key + '.secret';
-    await putObject(env, passwordKey, txt.encode(password));
   }
-  await putObject(env, key, bytes);
   const doc = { id, key, password_key: passwordKey, category, name, size: bytes.length, sha256: await sha256Hex(bytes),
     ...(category === 'pct_feedback' ? { draft_id: s.drafts.at(-1).document_id } : {}),
     ...(category === 'signed_agreement' ? { quote_id: s.quote.id } : {}) };
-  s.documents.push(doc);
+  return {doc,bytes,password};
+}
+
+export async function storeUpload(env,{doc,bytes,password},options) {
+  if (doc.password_key) await putObject(env,doc.password_key,txt.encode(password),options);
+  await putObject(env,doc.key,bytes,options);
   return doc;
 }
 

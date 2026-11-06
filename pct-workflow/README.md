@@ -54,6 +54,18 @@ Update the existing private release with the same Wrangler login. The helper che
 )
 ```
 
-This preserves the existing encryption and storage keys and keeps enrollment closed. In the private admin chat, **Patent Queue → Select a PCT case** then confirms the connection and shows read-only case status while closed. Actions that change cases, one-time document links, and notifications become available only when enrollment is enabled. No customer files or payments are needed for this connection check.
+This preserves the existing encryption and storage keys and keeps enrollment closed. In the private admin chat, **Patent Queue → Select a PCT case** then confirms the connection and shows case status while closed. Regular case actions, one-time document links, and notifications become available only when enrollment is enabled. No customer files or payments are needed for this connection check.
+
+### Admin case wipe
+
+With the Telegram administrator already connected and enrollment closed, enable the private wipe controls using the same Wrangler login and release folder:
+
+```bash
+node pct-workflow/scripts/release.mjs enable-wipe ../rv-pct-private-release
+```
+
+The command applies the additive schema and verifies the active Worker. It does not begin a wipe. From the private Telegram chat, open an individual PCT case, choose **Wipe case**, and confirm the red warning showing its reference. A confirmation expires after five minutes and is bound to that administrator, case and revision. Cancellation invalidates it. Confirmation hides the case from the customer and closes its portal links. If storage is temporarily unavailable or there are more file versions to remove, use **Continue wipe** on that case. The bot reports success only after the case prefix is empty and the database transaction removes the case and its dependent records.
+
+Backblaze requires the scoped private bucket key to have `listFiles` and `deleteFiles`; the warning checks access before freezing the case. The wipe removes older file versions and orphaned uploads under that exact case prefix. Shared legal templates, customer accounts and other cases remain. Only an unlinked payment digest is retained to prevent reusing an already verified transaction. Copies already downloaded, WIPO records, and provider-managed backups are outside the live case wipe.
 
 The preparation and response targets are service estimates, not official PCT time limits. The administrator records actual WIPO documents, client authorization and manual payment confirmations. Formal filings stay in ePCT using official access; no WIPO passwords or automatic filing calls are used.

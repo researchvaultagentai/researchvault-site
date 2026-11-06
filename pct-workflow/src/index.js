@@ -5,6 +5,7 @@ import * as F from './files.js';
 import * as A from './agreement.js';
 import { accountForEmail, authRoute, localSession } from './accounts.js';
 import { deliverPctNotices, notificationTarget } from './notifications.js';
+import * as W from './wipe.js';
 
 const PRODUCTION_ORIGIN = 'https://researchvault-patent.pages.dev';
 const INTERNAL = 'https://pct-internal.invalid';
@@ -12,6 +13,7 @@ const ID = /^pct_[a-f0-9]{24}$/;
 const DOC_ID = /^doc_[a-f0-9]{32}$/;
 const ADMIN_ACTIONS = new Set(['authorize_report', 'decide_idea', 'quote', 'waive_completion', 'start_drafting', 'start_submission']);
 const BOT_READ_ONLY = new Set(['/internal/pct/list','/internal/pct/case','/internal/pct/log']);
+const BOT_WIPE = new Set(['prepare','confirm','cancel','continue'].map(step=>'/internal/pct/wipe-'+step));
 const APP_NUMBER = /^PCT\/[A-Z]{2}\d{4}\/\d{6}$/;
 
 function testMode(env) {
@@ -54,6 +56,23 @@ function resourcesReady(env) {
 
 function configured(env) {
   return (testMode(env) || env.PCT_ENABLED === 'true') && resourcesReady(env);
+}
+
+async function saveCaseUpload(req,env,row,actor,admin) {
+  const prepared=await F.prepareUpload(req,row,admin), db=env.PCT_DB;
+  const token=await W.lockCaseUpload(db,row);
+  let storageComplete=false;
+  try {
+    const doc=await F.storeUpload(env,prepared,{signal:AbortSignal.timeout(60_000)});
+    storageComplete=true;
+    row.state.documents.push(doc);
+    await D.save(db,row,actor,admin?'admin_document_uploaded':'client_document_uploaded',{document_id:doc.id});
+    return json(F.documentView(doc),201);
+  } finally {
+    // A timed-out provider may still be finishing its write; keep the lease
+    // until it expires whenever we cannot confirm the storage call completed.
+    if (storageComplete) await W.unlockCaseUpload(db,row.id,token).catch(()=>{});
+  }
 }
 
 async function upstream(req, env, path, body) {
@@ -415,7 +434,7 @@ async function adminAction(env, row, actor, b, fromBot = false) {
   }
   try { return await D.save(env.PCT_DB, row, actor, event, details, notify); }
   catch (e) {
-    if (/UNIQUE constraint failed: pct_verified_payment_refs/.test(e?.message || '')) {
+    if (/UNIQUE constraint failed: pct_verified_payment_refs|pct_payment_already_consumed/.test(e?.message || '')) {
       fail('This transaction already settled another invoice.', 409, 'duplicate_payment');
     }
     throw e;
@@ -427,7 +446,10 @@ async function botRoute(req, env, url) {
   const admins = String(env.PCT_TELEGRAM_ADMIN_IDS || '').split(',').map(x => x.trim());
   S.ensure(/^\d{1,20}$/.test(actor) && admins.includes(actor), 'Administrator access required.', 403, 'forbidden');
   const enrollmentOpen = configured(env);
-  S.ensure(req.method === 'POST' && (enrollmentOpen || (BOT_READ_ONLY.has(url.pathname) && resourcesReady(env))),
+  const wipeRoute=BOT_WIPE.has(url.pathname);
+  const wipeEnabled=env.PCT_WIPE_ENABLED==='true' && resourcesReady(env);
+  S.ensure(!wipeRoute || wipeEnabled,'Case wipe is not enabled.',503,'wipe_unavailable');
+  S.ensure(req.method === 'POST' && (enrollmentOpen || wipeRoute || (BOT_READ_ONLY.has(url.pathname) && resourcesReady(env))),
     'Workflow unavailable.', 503, 'workflow_unavailable');
   const b = await input(req), db = env.PCT_DB;
   const offset = Number.isSafeInteger(b.offset) ? Math.min(2_147_483_647, Math.max(0,b.offset)) : 0;
@@ -437,10 +459,11 @@ async function botRoute(req, env, url) {
     case '/internal/pct/log':
       return json(await D.caseLog(db,b.case_id,offset));
     case '/internal/pct/case': {
-      const c = await D.caseById(db, b.case_id);
+      const c = await D.caseById(db, b.case_id, null, {includeWiping:true});
       return json({ id: c.id, public_ref: c.public_ref, stage: c.stage, revision: c.revision,
         team_idea: c.state.idea?.source === 'team', enrollment_open: enrollmentOpen,
-        can_waive_completion: enrollmentOpen && S.canWaiveCompletion(c.state) });
+        can_waive_completion: c.stage!=='wipe_pending' && enrollmentOpen && S.canWaiveCompletion(c.state),
+        ...(wipeEnabled ? {can_wipe:c.stage!=='wipe_pending',can_continue_wipe:c.stage==='wipe_pending'} : {}) });
     }
     case '/internal/pct/link':
       return json({ url: await D.newAdminLink(db, b.case_id, actor, env.PCT_ORIGIN) });
@@ -458,6 +481,14 @@ async function botRoute(req, env, url) {
       return json({ notification: await D.claimNotification(db) });
     case '/internal/pct/notification-ack':
       return json({ ok: await D.acknowledgeNotification(db, b.id, b.lease) });
+    case '/internal/pct/wipe-prepare':
+      return json(await W.prepareWipe(env,b.case_id,actor));
+    case '/internal/pct/wipe-confirm':
+      return json(await W.confirmWipe(env,b.case_id,actor,b.token));
+    case '/internal/pct/wipe-cancel':
+      return json(await W.cancelWipe(env,b.case_id,actor,b.token));
+    case '/internal/pct/wipe-continue':
+      return json(await W.continueWipe(env,b.case_id));
     default: fail('Not found.', 404, 'not_found');
   }
 }
@@ -501,9 +532,7 @@ async function route(req, env) {
       return json(await caseView(env, changed, true));
     }
     if (match[2] === 'documents' && method === 'POST') {
-      const doc = await F.uploadFile(req, env, row, true);
-      await D.save(db, row, user.id, 'admin_document_uploaded', { document_id: doc.id });
-      return json(F.documentView(doc), 201);
+      return saveCaseUpload(req,env,row,user.id,true);
     }
     const docId = /^documents\/(doc_[a-f0-9]{32})$/.exec(match[2] || '')?.[1];
     if (docId && method === 'GET') return download(env, row, docId, true);
@@ -547,9 +576,7 @@ async function route(req, env) {
   if (action==='status' && method==='GET') return json({revision:row.revision,stage:row.stage});
   if (action === 'action' && method === 'POST') return json(await caseView(env, await clientAction(req, env, row, user)));
   if (action === 'documents' && method === 'POST') {
-    const doc = await F.uploadFile(req, env, row, false);
-    await D.save(db, row, user.id, 'client_document_uploaded', { document_id: doc.id });
-    return json(F.documentView(doc), 201);
+    return saveCaseUpload(req,env,row,user.id,false);
   }
   if (action==='filing-consent' && method==='GET') return json(await filingConsent(row));
   if (action==='filing-consent/record' && method==='GET') {

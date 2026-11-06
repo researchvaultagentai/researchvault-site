@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { PDFDocument } from 'pdf-lib';
 import { strToU8, zipSync } from 'fflate';
-import { connectAdmin, installRelease, prepareRelease } from '../scripts/release.mjs';
+import { connectAdmin, enableWipe, installRelease, prepareRelease } from '../scripts/release.mjs';
 
 async function localRelease(t) {
   const tmp = await mkdtemp(path.join(tmpdir(), 'rv-pct-release-test-'));
@@ -142,4 +142,40 @@ test('Telegram setup checks the active private deployment without reaching the p
   assert.deepEqual(updates[0],{PCT_TELEGRAM_ADMIN_IDS:admin,PCT_NOTIFY_CHAT_ID:admin,PCT_TELEGRAM_NOTIFY_TOKEN:token});
   await connectAdmin(dir,{admin,token,run:run(),fetcher:async()=>{throw new TypeError('Network unavailable');}});
   assert.deepEqual(updates[1],{PCT_TELEGRAM_ADMIN_IDS:admin,PCT_NOTIFY_CHAT_ID:admin});
+});
+
+test('wipe activation migrates only the dedicated database and keeps enrollment closed', async t => {
+  const {dir}=await localRelease(t), conf=path.join(dir,'wrangler.json');
+  const config=JSON.parse(await readFile(conf,'utf8'));
+  await writeFile(path.join(dir,'install-complete.json'),JSON.stringify({worker:config.name,enabled:false}));
+  const id='7ab8cd12-e345-4f67-a890-abcdef012345';
+  const calls=[];
+  const run=({enrollment='false',admin=true,database=config.d1_databases[0].database_id,keepFlag=true}={})=>{
+    let enabled=false;
+    return (args,configPath,input)=>{
+      assert.equal(configPath,conf);
+      assert.equal(input,undefined);
+      if (args[0]==='deployments') return ok({versions:[{version_id:id,percentage:100}]});
+      if (args[0]==='versions') return ok({id,resources:{bindings:[
+        ...Object.entries({...config.vars,PCT_ENABLED:enrollment,PCT_WIPE_ENABLED:String(enabled && keepFlag)})
+          .map(([name,text])=>({name,text,type:'plain_text'})),
+        {name:'PCT_DB',type:'d1',id:database},
+        {name:'PATENT_API',type:'service',service:config.services[0].service},
+        ...['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME',
+          ...(admin ? ['PCT_TELEGRAM_ADMIN_IDS'] : [])].map(name=>({name,type:'secret_text'})),
+      ]}});
+      calls.push(args);
+      if (args[0]==='deploy') enabled=true;
+      return ok();
+    };
+  };
+  await assert.rejects(enableWipe(dir,{run:run({enrollment:'true'})}),/Enrollment is not confirmed closed/);
+  await assert.rejects(enableWipe(dir,{run:run({admin:false})}),/Connect the private Telegram administrator/);
+  await assert.rejects(enableWipe(dir,{run:run({database:'unexpected'})}),/does not match the dedicated PCT release/);
+  assert.deepEqual(calls,[]);
+  await assert.rejects(enableWipe(dir,{run:run({keepFlag:false})}),/could not be verified/);
+  calls.length=0;
+  await enableWipe(dir,{run:run()});
+  assert.deepEqual(calls,[['d1','migrations','apply','PCT_DB','--remote'],
+    ['deploy','--keep-vars','--var','PCT_WIPE_ENABLED:true']]);
 });
