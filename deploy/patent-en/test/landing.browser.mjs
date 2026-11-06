@@ -22,13 +22,28 @@ async function open(options = {}) {
   const page = await context.newPage();
   const requests = [];
   const errors = [];
+  const dialogs = [];
+  const guest = null;
+  const client = { full_name: 'Sample Client', email: 'sample@example.test' };
+  let session = options.signedIn ? client : guest;
   page.on('pageerror', e => errors.push(e.message));
+  page.on('dialog', dialog => { dialogs.push(dialog.type()); void dialog.dismiss(); });
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin !== ORIGIN) return route.abort();
     requests.push(url.pathname);
     if (options.block?.some(suffix => url.pathname.endsWith(suffix))) return route.abort();
-    if (url.pathname === '/api/me') return route.fulfill({ json: { user: null } });
+    if (url.pathname === '/api/me') return route.fulfill({ json: { user: session } });
+    if (url.pathname === '/api/cases') return route.fulfill({ json: { cases: [] } });
+    if (url.pathname === '/api/auth/request-otp') {
+      assert.deepEqual(route.request().postDataJSON(), { destination: client.email, channel: 'email' });
+      return route.fulfill({ json: { challenge_id: 'sample-challenge' } });
+    }
+    if (url.pathname === '/api/auth/verify-otp') {
+      assert.deepEqual(route.request().postDataJSON(), { challenge_id: 'sample-challenge', code: '123456' });
+      session = client;
+      return route.fulfill({ json: { ok: true } });
+    }
     if (url.pathname === '/support/config') return route.fulfill({ json: { configured: false } });
     const relative = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
     const body = await readFile(path.join(output, relative));
@@ -40,7 +55,7 @@ async function open(options = {}) {
   const image = page.locator('[data-pct-robot]');
   const rotation = page.locator('[data-pct-rotate]');
   const next = page.getByRole('button', { name: 'Next illustration' });
-  return { context, page, count, image, rotation, next, requests, errors };
+  return { context, page, count, image, rotation, next, requests, errors, dialogs };
 }
 
 const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width &&
@@ -136,6 +151,36 @@ try {
     await width(page, 640);
     assert.match(await image.getAttribute('src'), /^data:image\/jpeg;base64,/);
     assert.ok(await next.isHidden());
+    await context.close();
+  }
+  {
+    const { context, page, errors, dialogs } = await open();
+    const noIranLinks = () => page.evaluate(() => [...document.querySelectorAll('a[href]')]
+      .filter(a => /(?:^|\.)researchvaultagent\.ir$/i.test(new URL(a.href).hostname)).map(a => a.href));
+    assert.deepEqual(await noIranLinks(), []);
+    await page.locator('.pct-header [data-pct-client-portal]').click();
+    await page.waitForURL(/\/patent\/en\/account\/\?next=/);
+    await page.getByRole('heading', { name: 'Sign in / create an account' }).waitFor();
+    assert.deepEqual(await noIranLinks(), []);
+    assert.equal(await page.getByText(/contracted SMS provider|Phone-number sign-in/).count(), 0);
+    await page.getByLabel('Email', { exact: true }).fill('sample@example.test');
+    await page.getByRole('button', { name: 'Send verification code' }).click();
+    await page.getByLabel('One-time code').fill('123456');
+    await page.getByRole('button', { name: 'Verify and sign in' }).click();
+    await page.waitForURL(ORIGIN + '/patent/en/dashboard/');
+    await page.getByRole('heading', { name: 'My cases' }).waitFor();
+    assert.deepEqual(await noIranLinks(), []);
+    assert.deepEqual(dialogs, []);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+  {
+    const { context, page, errors, requests } = await open({ signedIn: true });
+    await page.waitForFunction(() => document.querySelector('.pct-header [data-pct-client-portal]').pathname === '/patent/en/dashboard/');
+    await page.locator('.pct-header [data-pct-client-portal]').click();
+    await page.waitForURL(ORIGIN + '/patent/en/dashboard/');
+    assert.ok(!requests.includes('/patent/en/account/'), 'an active session skips the login page');
+    assert.deepEqual(errors, []);
     await context.close();
   }
   console.log('Passed PCT landing browser checks in ' + engine.name() + '.');

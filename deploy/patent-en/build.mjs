@@ -9,9 +9,9 @@ export const ORIGIN = 'https://researchvault-patent.pages.dev';
 const assets = [
   'patent/assets/patent.css', 'patent/assets/patent.js', 'patent/assets/pct-landing.css',
   'patent/assets/pct-landing.js', 'patent/assets/pct-patent-agent.webp',
-  'patent/assets/account.js', 'patent/assets/dashboard-en.js',
+  'patent/assets/dashboard-en.js',
   'patent/assets/intake-en.js', 'patent/assets/signature.js',
-  'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js',
+  'assets/patent-hero-robot.png', 'assets/rv-support-widget.js', 'assets/rv-support-faq.js', 'assets/rv-support-context.js', 'assets/rv-pct-support.js',
   'patent/contracts/nda-en.html', 'patent/contracts/pct-en.html',
 ];
 const billingAssets = {
@@ -76,6 +76,9 @@ async function copyEnglishPages(directory = 'patent/en') {
     const runtime = /<script src="[^"]*\/patent\.js"><\/script>/;
     if (!runtime.test(html)) throw new Error('Missing Patent runtime: ' + source);
     html = html.replace(runtime, '<script src="/patent/assets/english-host.js"></script>$&');
+    if (/\b(?:href|src|action)\s*=\s*["'][^"']*(?:[a-z0-9-]+\.)*researchvaultagent\.ir\b/i.test(html)) {
+      throw new Error('International page points to the Iranian domain: ' + source);
+    }
     await write(target, html);
   }
 }
@@ -90,6 +93,7 @@ export async function build() {
     await cp(path.join(repository, asset), target);
   }
   await cp(path.join(here, 'english-host.js'), path.join(output, 'patent/assets/english-host.js'));
+  await cp(path.join(here, 'english-login.js'), path.join(output, 'patent/assets/english-login.js'));
   for (const [source, target] of Object.entries(billingAssets)) {
     await cp(path.join(here, source), path.join(output, 'patent/assets', target));
   }

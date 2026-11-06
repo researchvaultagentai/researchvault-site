@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 const widget = await readFile(new URL('../assets/rv-support-widget.js', import.meta.url), 'utf8');
 const context = await readFile(new URL('../assets/rv-support-context.js', import.meta.url), 'utf8');
 const faq = await readFile(new URL('../assets/rv-support-faq.js', import.meta.url), 'utf8');
+const pctGuide = await readFile(new URL('../assets/rv-pct-support.js', import.meta.url), 'utf8');
 const browser = await chromium.launch();
 let checks = 0;
 async function assertLauncherWithinViewport(page, viewport) {
@@ -33,6 +34,7 @@ async function setup(language, viewport, configured = true, origin = 'https://re
     if (url.pathname === '/assets/rv-support-widget.js') return route.fulfill({ contentType: 'text/javascript', body: widget });
     if (url.pathname === '/assets/rv-support-context.js') return route.fulfill({ contentType: 'text/javascript', body: context });
     if (url.pathname === '/assets/rv-support-faq.js') return route.fulfill({ contentType: 'text/javascript', body: faq });
+    if (url.pathname === '/assets/rv-pct-support.js') return route.fulfill({ contentType: 'text/javascript', body: pctGuide });
     if (url.pathname === '/support/config') return route.fulfill({ json: configured
       ? { configured: true, turnstileSiteKey: '0x4_TEST_PUBLIC_KEY' } : { configured: false } });
     if (url.pathname === '/support/chat') {
