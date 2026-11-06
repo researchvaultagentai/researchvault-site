@@ -5,8 +5,9 @@ import { $, api, esc, fileForm, login, money, notice, onClick, onForm, post, req
 
 const ROOT = '/api/pct';
 const PATH = '/patent/en/workflow/';
-let user, testMode = false, activeCase = null, dirty = false, checking = false, clockSample = null;
+let user, testMode = false, activeCase = null, checking = false, clockSample = null;
 let paymentCheck = null;
+const dirtyForms = new Set();
 const casePath = id => `${ROOT}/cases/${encodeURIComponent(id)}`;
 const txt = (name, label, extra = '') => `<label>${label}<input name="${name}" required ${extra}></label>`;
 const check = (name, label) => `<label class="check"><input type="checkbox" name="${name}" required> ${label}</label>`;
@@ -185,22 +186,49 @@ function showCheckout(c,key,payment) {
   }
   if (details.hidden) {
     details.hidden=false;
-    details.innerHTML=`<p>Send exactly <strong>${(payment.amount_cents/100).toFixed(2)} USDT</strong> on TRON (TRC20) to this invoice address.</p>
+    const instructions=payment.reference ? `
+      <p>Use a wallet that supports a <strong>Memo</strong> on TRON. Include this exact invoice memo with your transfer.</p>
+      <p><code class="checkout-address">${esc(payment.reference)}</code></p>
+      <p><button type="button" data-copy-memo="${key}" class="secondary">Copy memo</button></p>
+      <form data-usdt-txid="${key}">
+        ${txt('txid','Transaction ID after sending','pattern="[0-9a-fA-F]{64}" maxlength="64" spellcheck="false" autocomplete="off"')}
+        ${button('Verify payment')}
+      </form>` : '';
+    details.innerHTML=`<p>Send exactly <strong>${(payment.amount_cents/100).toFixed(2)} USDT</strong> on TRON (TRC20) to this receiving address.</p>
       <p><code class="checkout-address">${esc(payment.address)}</code></p>
       <p><button type="button" data-copy-payment="${key}" class="secondary">Copy address</button></p>
+      ${instructions}
       <p class="quiet">The portal checks for confirmation automatically. You can close this page and return later.</p>`;
-    onClick(`[data-copy-payment="${key}"]`, async button=>{
-      await navigator.clipboard.writeText(payment.address);
-      button.textContent='Address copied';
+    const copy = (selector,value,label)=>onClick(selector,async button=>{
+      await navigator.clipboard.writeText(value);
+      button.textContent=label;
     });
+    copy(`[data-copy-payment="${key}"]`,payment.address,'Address copied');
+    if (payment.reference) {
+      copy(`[data-copy-memo="${key}"]`,payment.reference,'Memo copied');
+      const form=`[data-usdt-txid="${key}"]`;
+      if (payment.txid) $(form).elements.txid.value=payment.txid;
+      onForm(form,async (data, element)=>{
+        const txid=data.get('txid');
+        const verified=await post(casePath(c.id)+'/checkout/check',{milestone:key,txid});
+        if (element.elements.txid.value===txid) dirtyForms.delete(element);
+        showCheckout(c,key,verified);
+      });
+    }
   }
-  status.textContent=payment.status==='review_required' ? 'A transfer needs review. Please wait for an update before sending another payment.'
-    : 'Waiting for the transfer to be confirmed on TRON.';
+  const statuses={
+    review_required:'A transfer needs review. Please wait for an update before sending another payment.',
+    reference_mismatch:'This transaction does not contain this invoice memo. Check the transaction ID. If you already sent funds, contact ResearchVault before sending another payment.',
+  };
+  status.textContent=statuses[payment.status] || (payment.reference && !payment.txid
+    ? 'Enter the transaction ID after sending USDT with the invoice memo.'
+    : 'Waiting for the transfer to be confirmed on TRON.');
 }
 
 async function checkPayment() {
   const check=paymentCheck;
-  if (!check || check.busy || document.hidden || activeCase!==check.case) return;
+  if (!check || check.busy || document.hidden || activeCase!==check.case ||
+      (check.last?.reference && check.last.status!=='checking_transfer')) return;
   check.busy=true;
   try {
     const payment=await post(casePath(check.case.id)+'/checkout/check',{milestone:check.key});
@@ -217,7 +245,7 @@ function bindCase(c) {
     $('#case-notifications')?.remove();
   });
   onClick('#refresh-case',async()=>{
-    if(dirty && !window.confirm('Refresh the case? Any unsubmitted form edits will be lost.'))return;
+    if(dirtyForms.size && !window.confirm('Refresh the case? Any unsubmitted form edits will be lost.'))return;
     await refresh();
   });
   const root = casePath(c.id);
@@ -326,7 +354,8 @@ async function refresh() {
   const id = q.get('new') ? null : q.get('case') || list.cases[0]?.id;
   const chosen = list.cases.find(c => c.id === id);
   const c = chosen ? await api(casePath(id)) : null;
-  activeCase=c;dirty=false;
+  activeCase=c;
+  dirtyForms.clear();
   clockSample=Number.isSafeInteger(c?.server_now)?{server:c.server_now,local:performance.now()}:null;
   const sidebar = `<aside class="card case-list"><h2>My cases</h2><a href="${PATH}?new=1">+ New PCT case</a>
     ${list.cases.map(x => `<a href="${PATH}?case=${x.id}"${x.id === id ? ' aria-current="page"' : ''}>${esc(x.title)}<br><small>${esc(x.public_ref)}</small></a>`).join('')}</aside>`;
@@ -351,12 +380,12 @@ async function refresh() {
   });
 }
 
-document.addEventListener('input',event=>{
-  if(activeCase && event.target.closest?.('#app form'))dirty=true;
-});
-document.addEventListener('change',event=>{
-  if(activeCase && event.target.closest?.('#app form'))dirty=true;
-});
+function markDirty(event) {
+  const form=event.target.closest?.('#app form');
+  if(activeCase && form) dirtyForms.add(form);
+}
+document.addEventListener('input',markDirty);
+document.addEventListener('change',markDirty);
 async function checkStatus() {
   if(!activeCase||checking||document.hidden)return;
   const current=activeCase;
@@ -368,7 +397,7 @@ async function checkStatus() {
       if (next.client_seen_revision>=current.revision) $('#case-notifications')?.remove();
       return;
     }
-    if(dirty || $('#app button:disabled:not([hidden])')){
+    if(dirtyForms.size || $('#app button:disabled:not([hidden])')){
       const note=$('#status-update');
       if(note && note.firstChild)note.firstChild.textContent='A case update is ready. Submit your form or refresh. ';
     }else await refresh();
