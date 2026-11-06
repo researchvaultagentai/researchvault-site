@@ -189,39 +189,60 @@ export async function installRelease(directory, { run = command, authorize = aut
   console.log('Installed the private PCT Worker with enrollment disabled. No customer routes were switched.');
 }
 
+function activeWorkerSecrets(run, conf, expected) {
+  const read = (args, label) => {
+    const result = run(args, conf);
+    check(result.status === 0, `${label} failed. Check the existing Cloudflare login.`);
+    try { return JSON.parse(result.stdout); }
+    catch { throw new Error(`${label} did not return valid configuration. No Worker changes were made.`); }
+  };
+  const deployment = read(['deployments','status','--name',service,'--json'], 'Read the active PCT deployment');
+  const versions = deployment?.versions;
+  const versionId = versions?.[0]?.version_id;
+  check(Array.isArray(versions) && versions.length === 1 && versions[0].percentage === 100 &&
+    /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(versionId || ''),
+  'The PCT Worker must have one active version receiving all traffic before setup.');
+  const version = read(['versions','view',versionId,'--name',service,'--json'], 'Read the active PCT configuration');
+  const bindings = version?.resources?.bindings;
+  check(version?.id === versionId && Array.isArray(bindings), 'Could not verify the active private Worker configuration.');
+  const get = (name, type) => {
+    const matched = bindings.filter(item => item?.name === name);
+    return matched.length === 1 && matched[0].type === type ? matched[0] : null;
+  };
+  check(get('PCT_ENABLED','plain_text')?.text === 'false', 'Enrollment is not confirmed closed on the active PCT Worker. No changes were made.');
+  check(Object.entries(expected.vars).every(([name,text]) => get(name,'plain_text')?.text === text) &&
+    get('PCT_DB','d1')?.id === databaseId && get('PATENT_API','service')?.service === expected.services[0].service,
+  'The active Worker does not match the dedicated PCT release and document settings.');
+  check(['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].every(name => get(name,'secret_text')),
+    'The active private Worker is missing an encryption or Backblaze secret. Do not replace the original key.');
+  return { hasNotificationToken: Boolean(get('PCT_TELEGRAM_NOTIFY_TOKEN','secret_text')) };
+}
+
 export async function connectAdmin(directory, { admin, token, run = command, fetcher = fetch } = {}) {
   check(/^\d{1,20}$/.test(admin || ''), 'Enter the Telegram ID of the existing private bot administrator.');
-  if (token) check(/^\d{6,15}:[a-zA-Z0-9_-]{20,100}$/.test(token), 'Enter the existing ResearchVault bot token locally.');
   const dir = await outsideRepository(directory, true);
   const conf = path.join(dir, 'wrangler.json');
   const [vars, secrets, saved, installed] = await Promise.all(
     ['vars.json','worker-secrets.json','wrangler.json','install-complete.json'].map(name => json(dir,name)),
   );
-  check(JSON.stringify(saved) === JSON.stringify(config(vars)) && installed.worker === service && installed.enabled === false,
+  const expected = config(vars);
+  check(JSON.stringify(saved) === JSON.stringify(expected) && installed.worker === service && installed.enabled === false,
     'This is not the completed disabled PCT installation. Use the original private release folder.');
   await verifyFiles(dir, vars, secrets);
-  const requestOptions = { redirect:'error', cache:'no-store', signal:AbortSignal.timeout(12000) };
-  const response = await fetcher(origin + '/api/pct/status', requestOptions).catch(()=>null);
-  const status = response?.ok ? await response.json().catch(()=>null) : null;
-  check(status?.connected === true && status.enabled === false,
-    'Confirm the live Pages binding reports connected=true and enabled=false before updating the private Worker.');
-  if (token) {
+  let verifiedToken = false;
+  if (token && /^\d{6,15}:[a-zA-Z0-9_-]{20,100}$/.test(token)) {
     const r = await fetcher('https://api.telegram.org/bot'+token+'/getMe',
       { redirect:'error', signal:AbortSignal.timeout(12000) }).catch(()=>null);
     const info = r?.ok ? await r.json().catch(()=>null) : null;
-    check(info?.ok && String(info.result?.username || '').toLowerCase() === botUsername,
-      'Telegram could not verify the existing ResearchVault bot token. Check it locally.');
+    verifiedToken = info?.ok === true && String(info.result?.username || '').toLowerCase() === botUsername;
   }
-  const present = run(['secret','list','--format','json'], conf);
-  check(present.status === 0, 'Could not inspect the private Worker. Check the existing Cloudflare login.');
-  const names = new Set(JSON.parse(present.stdout).map(item=>item.name));
-  check(['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].every(name=>names.has(name)),
-    'The installed private Worker is missing an encryption or Backblaze secret. Do not replace the original key.');
+  const { hasNotificationToken } = activeWorkerSecrets(run, conf, expected);
   check(run(['deploy','--keep-vars'], conf).status === 0, 'Could not update the private PCT Worker.');
-  const updates = { PCT_TELEGRAM_ADMIN_IDS:admin, PCT_NOTIFY_CHAT_ID:admin, ...(token ? {PCT_TELEGRAM_NOTIFY_TOKEN:token} : {}) };
+  const updates = { PCT_TELEGRAM_ADMIN_IDS:admin, PCT_NOTIFY_CHAT_ID:admin, ...(verifiedToken ? {PCT_TELEGRAM_NOTIFY_TOKEN:token} : {}) };
   check(run(['secret','bulk'], conf, JSON.stringify(updates)).status === 0, 'Could not set the private Telegram administrator.');
   console.log('Configured the private Telegram administrator. Enrollment remains disabled.');
-  if (!token && !names.has('PCT_TELEGRAM_NOTIFY_TOKEN')) console.log('Automatic notices need the existing bot token; case monitoring can be checked now.');
+  if (token && !verifiedToken) console.log('Telegram could not verify the supplied token. The notification token was not changed.');
+  if (!verifiedToken && !hasNotificationToken) console.log('Automatic notices need a verified bot token; case monitoring can be checked now.');
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {

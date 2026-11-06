@@ -45,7 +45,7 @@ If Wrangler reports you are signed out, run `node pct-workflow/node_modules/wran
 5. Optionally enable classic email/password with `PCT_PASSWORD_ENABLED=true` and a separate long `PCT_AUTH_PEPPER` secret. Create a Google Web OAuth client, add the exact redirect URI `https://researchvault-patent.pages.dev/api/pct/auth/google/callback`, and configure `PCT_GOOGLE_CLIENT_ID` and `PCT_GOOGLE_CLIENT_SECRET`. Google buttons appear after configuration. Test provider callback and CPU/billing limits on the current plan before enabling optional methods. The email code remains available.
 6. Verify the new site, private agreement and restricted bot access using test identities in a separate environment. Enable `PCT_ENABLED=true` on the private Worker only when bindings and the signed documents are ready. The English home then directs new clients to the new portal. Turning it off restores the old entry links; if real cases have been opened, preserve access and the database during any rollback.
 
-After the Pages status endpoint reports `connected: true, enabled: false`, update the existing private release with the same Wrangler login. Do not rerun `bootstrap`:
+Update the existing private release with the same Wrangler login. The helper checks the active private Worker and confirms enrollment is closed through the authenticated Cloudflare API. Your computer does not need to reach the public Pages hostname for this step. Do not rerun `bootstrap`:
 
 ```bash
 (
@@ -57,6 +57,6 @@ After the Pages status endpoint reports `connected: true, enabled: false`, updat
 )
 ```
 
-This checks the installed release, preserves the existing encryption and storage keys, and keeps enrollment closed. In the private admin chat, **Patent Queue → Select a PCT case** then confirms the connection and shows read-only case status while closed. Actions that change cases, one-time document links, and notifications become available only when enrollment is enabled. No customer files or payments are needed for this connection check.
+This preserves the existing encryption and storage keys and keeps enrollment closed. If this computer cannot verify the optional token with Telegram, case monitoring is still configured and the notification token is left unchanged. In the private admin chat, **Patent Queue → Select a PCT case** then confirms the connection and shows read-only case status while closed. Actions that change cases, one-time document links, and notifications become available only when enrollment is enabled. No customer files or payments are needed for this connection check.
 
 The preparation and response targets are service estimates, not official PCT time limits. The administrator records actual WIPO documents, client authorization and manual payment confirmations. Formal filings stay in ePCT using official access; no WIPO passwords or automatic filing calls are used.

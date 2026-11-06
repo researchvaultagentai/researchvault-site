@@ -90,25 +90,56 @@ test('an unscoped key or an existing Worker prevents deployment before any remot
   } }), /new Worker name is unused/);
 });
 
-test('the Telegram setup only updates the installed private Worker while enrollment is closed', async t => {
+test('Telegram setup checks the active private deployment without reaching the public site', async t => {
   const {dir}=await localRelease(t);
   await writeFile(path.join(dir,'install-complete.json'),JSON.stringify({worker:'researchvault-pct-workflow',enabled:false}));
   const admin='77777', token='123456:synthetic_test_token_only';
-  await assert.rejects(connectAdmin(dir,{admin,token,run:()=>assert.fail('No mutation while enrollment is open'),
-    fetcher:async()=>Response.json({connected:true,enabled:true})}), /connected=true and enabled=false/);
+  const conf=path.join(dir,'wrangler.json');
+  const config=JSON.parse(await readFile(conf,'utf8'));
+  const id='7ab8cd12-e345-4f67-a890-abcdef012345';
   const calls=[];
-  await connectAdmin(dir,{admin,token,fetcher:async url=>{
-    if (url.endsWith('/api/pct/status')) return Response.json({connected:true,enabled:false});
+  const updates=[];
+  const run=({enabled='false',percentage=100,database=config.d1_databases[0].database_id}={})=>(args,configPath,input)=>{
+    assert.equal(configPath,conf);
+    calls.push(args.slice(0,2).join(' '));
+    if (args[0]==='deployments') {
+      assert.deepEqual(args,['deployments','status','--name',config.name,'--json']);
+      return ok({versions:[{version_id:id,percentage}]});
+    }
+    if (args[0]==='versions') {
+      assert.deepEqual(args,['versions','view',id,'--name',config.name,'--json']);
+      return ok({id,resources:{bindings:[
+        ...Object.entries({...config.vars,PCT_ENABLED:enabled}).map(([name,text])=>({name,text,type:'plain_text'})),
+        {name:'PCT_DB',type:'d1',id:database},
+        {name:'PATENT_API',type:'service',service:config.services[0].service},
+        ...['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].map(name=>({name,type:'secret_text'})),
+      ]}});
+    }
+    assert.equal(enabled,'false');
+    assert.equal(percentage,100);
+    assert.equal(database,config.d1_databases[0].database_id);
+    if (args[0]==='deploy') assert.deepEqual(args,['deploy','--keep-vars']);
+    else {
+      assert.deepEqual(args,['secret','bulk']);
+      updates.push(JSON.parse(input));
+    }
+    return ok();
+  };
+  const noNetwork=async()=>assert.fail('No public network calls without a notification token');
+  for (const [settings,error] of [
+    [{enabled:'true'},/Enrollment is not confirmed closed/],
+    [{percentage:80},/one active version/],
+    [{database:'unexpected'},/does not match the dedicated PCT release/],
+  ]) await assert.rejects(connectAdmin(dir,{admin,run:run(settings),fetcher:noNetwork}),error);
+  assert.equal(updates.length,0);
+  assert.equal(calls.some(value=>value.startsWith('deploy ')),false);
+  calls.length=0;
+  await connectAdmin(dir,{admin,token,run:run(),fetcher:async url=>{
     assert.equal(url,`https://api.telegram.org/bot${token}/getMe`);
     return Response.json({ok:true,result:{username:'ResearchVaultAgentBot'}});
-  },run:(args,conf,input)=>{
-    assert.equal(conf,path.join(dir,'wrangler.json'));
-    calls.push(args.join(' '));
-    if (args[1]==='list') return ok(['PCT_FILE_KEY','B2_KEY_ID','B2_APPLICATION_KEY','B2_BUCKET_ID','B2_BUCKET_NAME'].map(name=>({name})));
-    if (args[1]==='bulk') assert.deepEqual(JSON.parse(input),{
-      PCT_TELEGRAM_ADMIN_IDS:admin,PCT_NOTIFY_CHAT_ID:admin,PCT_TELEGRAM_NOTIFY_TOKEN:token,
-    });
-    return ok();
   }});
-  assert.deepEqual(calls,['secret list --format json','deploy --keep-vars','secret bulk']);
+  assert.deepEqual(calls,['deployments status','versions view','deploy --keep-vars','secret bulk']);
+  assert.deepEqual(updates[0],{PCT_TELEGRAM_ADMIN_IDS:admin,PCT_NOTIFY_CHAT_ID:admin,PCT_TELEGRAM_NOTIFY_TOKEN:token});
+  await connectAdmin(dir,{admin,token,run:run(),fetcher:async()=>{throw new TypeError('Network unavailable');}});
+  assert.deepEqual(updates[1],{PCT_TELEGRAM_ADMIN_IDS:admin,PCT_NOTIFY_CHAT_ID:admin});
 });
