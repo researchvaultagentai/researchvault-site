@@ -435,3 +435,5 @@
   .pct-home *, .pct-home *::before, .pct-home *::after { animation: none; transition: none; }
   .pct-button:hover { transform: none; }
 }
+
+.pct-former-price { display:block; color:#456148; font-weight:650; margin:.5rem 0 .15rem; }
