@@ -12,6 +12,7 @@ const categories = {
   disclosure: extensions, identity: new Set(['pdf', 'png', 'jpg', 'jpeg']),
   pct_draft: new Set(['docx']), pct_feedback: new Set(['docx']),
   filing_receipt: new Set(['pdf']), filed_document: new Set(['pdf','docx','zip']),
+  isa_report: new Set(['pdf']), isa_written_opinion: new Set(['pdf']),
   signed_agreement: new Set(['pdf','docx']), report_pdf: new Set(['pdf']), report_docx: new Set(['docx']), package_review: new Set(['pdf']),
   package_final: new Set(['docx','pdf','zip']), publication_notice: new Set(['pdf']),
 };
@@ -20,6 +21,7 @@ const ADMIN_UPLOADS = {
   pct_drafting: ['pct_draft'], pct_draft_revision: ['pct_draft'],
   pct_finalizing: ['package_review', 'package_final'],
   pct_submitting: ['filing_receipt','filed_document'],
+  isa_wait: ['isa_report','isa_written_opinion'],
   publication_wait: ['publication_notice'],
 };
 
@@ -241,6 +243,8 @@ export function mayDownload(s, doc, admin) {
   if (doc.category === 'package_final') return s.package?.final_id === doc.id && packageReleased(s);
   if (doc.category === 'filing_receipt') return s.filing?.receipt_ids?.includes(doc.id) || false;
   if (doc.category === 'filed_document') return s.filing?.document_ids?.includes(doc.id) || false;
+  if (doc.category === 'isa_report') return s.isa?.report_id === doc.id;
+  if (doc.category === 'isa_written_opinion') return s.isa?.written_opinion_id === doc.id;
   if (doc.category === 'publication_notice') return s.completion?.document_id === doc.id;
   return ['disclosure', 'identity', 'signed_agreement', 'pct_feedback'].includes(doc.category);
 }

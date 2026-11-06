@@ -96,7 +96,7 @@ export function recordReceipt(s, key, receipt) {
   ensure(inv?.status === 'issued', 'This invoice is no longer open.');
   ensure(inv.receipt?.reference !== receipt.reference || inv.receipt?.method !== receipt.method,
     'This receipt is already awaiting review.');
-  inv.receipt = receipt;
+  inv.receipt = { ...receipt, review_since: inv.receipt?.review_since || inv.receipt?.submitted_at || receipt.submitted_at };
 }
 
 export function settle(s, key, evidence, at) {

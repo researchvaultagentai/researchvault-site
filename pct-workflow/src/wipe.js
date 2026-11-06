@@ -68,9 +68,10 @@ export async function confirmWipe(env,id,actor,token) {
     db.prepare(`UPDATE pct_cases SET stage='wipe_pending',revision=revision+1,updated_at=?,event_json=?
       WHERE id=? AND revision=? AND stage<>'wipe_pending' AND (upload_until IS NULL OR upload_until<=?)
       AND NOT EXISTS(SELECT 1 FROM pct_events WHERE case_id=? AND lease_until>? AND notified_at IS NULL)
+      AND NOT EXISTS(SELECT 1 FROM pct_team_updates WHERE case_id=? AND lease_until>? AND notified_at IS NULL)
       AND EXISTS(SELECT 1 FROM pct_case_wipes WHERE case_id=? AND actor=? AND revision=?
         AND confirmation_hash=? AND confirmed_at IS NULL AND expires_at>=?) RETURNING id`)
-      .bind(t,JSON.stringify({type:'case_wipe_started',actor:`tg:${actor}`}),id,intent.revision,t,id,t,
+      .bind(t,JSON.stringify({type:'case_wipe_started',actor:`tg:${actor}`}),id,intent.revision,t,id,t,id,t,
         id,actor,intent.revision,hash,t),
     db.prepare(`UPDATE pct_case_wipes SET confirmed_at=?,confirmation_hash=''
       WHERE case_id=? AND actor=? AND confirmation_hash=? AND confirmed_at IS NULL AND expires_at>=?

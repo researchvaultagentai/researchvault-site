@@ -5,6 +5,7 @@ import * as F from './files.js';
 import * as A from './agreement.js';
 import { accountForEmail, authRoute, localSession } from './accounts.js';
 import { deliverPctNotices, notificationTarget } from './notifications.js';
+import { clientTeamUpdates } from './team-updates.js';
 import * as W from './wipe.js';
 
 const PRODUCTION_ORIGIN = 'https://researchvault-patent.pages.dev';
@@ -53,6 +54,8 @@ function resourcesReady(env) {
     return isolated || !docs.some(doc => sample.test(doc.key) || sample.test(doc.version));
   } catch { return false; }
 }
+
+const timingEnabled = env => env.PCT_RESPONSE_TIMING_ENABLED === 'true' || testMode(env);
 
 function configured(env) {
   return (testMode(env) || env.PCT_ENABLED === 'true') && resourcesReady(env);
@@ -139,6 +142,8 @@ async function caseView(env, row, admin = false) {
     package: s.package ? { review_id: s.package.review_id,
       ready_at: s.package.ready_at, ...((admin || showFinal) ? { final_id: s.package.final_id } : {}) } : null,
     settlement: s.settlement, messages: s.messages, preparation_started_at: s.preparation_started_at,
+    ...(timingEnabled(env) ? { team_updates: clientTeamUpdates(s), server_now: nowSec(),
+      ...(admin ? {} : { client_seen_revision: row.client_seen_revision }) } : {}),
     events: await D.timeline(env.PCT_DB, row.id),
     ...(admin ? { client: { name: s.name, country: s.country }, test_mode: testMode(env) } : {}),
   };
@@ -291,7 +296,7 @@ async function clientAction(req, env, row, user) {
       break;
     }
     case 'message':
-      S.ensure(s.undertaking && s.messages.length < 50, 'This case cannot receive another message.');
+      S.ensure(s.undertaking && s.messages.filter(m=>m.actor==='client').length < 50, 'This case cannot receive another message.');
       s.messages.push({ body: bounded(b.body, 'Message', 2, 2000), actor: 'client', at });
       topic = 'client_message'; notify = true;
       break;
@@ -378,6 +383,14 @@ async function adminAction(env, row, actor, b, fromBot = false) {
     case 'ack_meeting':
       S.acknowledgeMeeting(s,b.meeting_id,clean(b.note,1000) || 'The team has received your meeting request.',at);
       event='online_meeting_acknowledged';break;
+    case 'post_team_update':
+      S.ensure(timingEnabled(env), 'Team updates are not enabled yet.', 503, 'timing_unavailable');
+      S.ensure(!['declined','completed','closed_by_agreement'].includes(s.stage) && s.messages.length < 200,
+        'This case cannot receive another update.');
+      s.messages.push({body:bounded(b.body,'Case update',2,2000),actor:'team',at});
+      if (b.progress === true) s.team_update_at=at;
+      event='team_update_posted';
+      break;
     case 'package_ready': {
       const review = findDoc(s, b.review_id, 'package_review'), final = findDoc(s, b.final_id, 'package_final');
       S.ensure(b.reviewed === true, 'Confirm that both filing files belong to this case.');
@@ -403,12 +416,19 @@ async function adminAction(env, row, actor, b, fromBot = false) {
       event = 'filed_awaiting_isa'; notify=true;
       break;
     }
-    case 'isa_received':
+    case 'isa_received': {
       S.ensure(typeof b.response_needed === 'boolean', 'Indicate whether a response or amendment is in scope.');
+      const report = b.report_id ? findDoc(s,b.report_id,'isa_report') : null;
+      const opinion = b.written_opinion_id ? findDoc(s,b.written_opinion_id,'isa_written_opinion') : null;
+      const deadline = b.official_due_on ? {
+        date: actualDate(b.official_due_on), source: bounded(b.official_due_source,'Official deadline source',2,180),
+      } : null;
       S.recordIsa(s, { reference: bounded(b.reference, 'ISA document reference', 2, 180),
-        response_needed: b.response_needed }, at);
+        response_needed: b.response_needed, ...(report ? {report_id:report.id} : {}),
+        ...(opinion ? {written_opinion_id:opinion.id} : {}), ...(deadline ? {deadline} : {}) }, at);
       event = 'isa_received';
       break;
+    }
     case 'response_done':
       S.recordResponse(s, { reference: bounded(b.reference, 'Response / amendment reference', 2, 180) }, at);
       event = 'response_completed';
@@ -478,7 +498,7 @@ async function botRoute(req, env, url) {
       return json({ ok: true, public_ref: changed.public_ref, stage: changed.stage });
     }
     case '/internal/pct/notification':
-      return json({ notification: await D.claimNotification(db) });
+      return json({ notification: await D.claimNotification(db,{timing:env.PCT_RESPONSE_TIMING_ENABLED==='true'}) });
     case '/internal/pct/notification-ack':
       return json({ ok: await D.acknowledgeNotification(db, b.id, b.lease) });
     case '/internal/pct/wipe-prepare':
@@ -573,7 +593,12 @@ async function route(req, env) {
   S.ensure(match && ID.test(match[1]), 'Case not found.', 404, 'not_found');
   const row = await D.caseById(db, match[1], user.id), action = match[2];
   if (!action && method === 'GET') return json(await caseView(env, row));
-  if (action==='status' && method==='GET') return json({revision:row.revision,stage:row.stage});
+  if (action==='status' && method==='GET') return json({revision:row.revision,stage:row.stage,
+    ...(timingEnabled(env) ? {client_seen_revision:row.client_seen_revision} : {})});
+  if (action==='seen' && method==='POST' && timingEnabled(env)) {
+    await D.markClientEventsSeen(db,row,(await input(req)).revision);
+    return json({ok:true});
+  }
   if (action === 'action' && method === 'POST') return json(await caseView(env, await clientAction(req, env, row, user)));
   if (action === 'documents' && method === 'POST') {
     return saveCaseUpload(req,env,row,user.id,false);

@@ -1,5 +1,6 @@
 import { nowSec, randomToken, sha256Hex, uid } from '../../patent-api/src/security.js';
 import { ensure, outstandingCompletion } from './state.js';
+import { NOTICE_LEAD, pendingTeamUpdates } from './team-updates.js';
 
 const parsed = row => row && { ...row, state: JSON.parse(row.state_json) };
 
@@ -36,8 +37,8 @@ export async function createCase(db, user, state, requestId) {
   const id = 'pct_' + (await sha256Hex(user + ':' + requestId)).slice(0, 24);
   const ref = 'PCT-' + new Date().getUTCFullYear() + '-' + id.slice(-10).toUpperCase();
   const res = await db.prepare(`INSERT OR IGNORE INTO pct_cases
-    (id,user_id,public_ref,stage,state_json,event_json,created_at,updated_at)
-    SELECT ?,?,?,?,?,?,?,? WHERE NOT EXISTS
+    (id,user_id,public_ref,stage,state_json,event_json,created_at,updated_at,team_updates_indexed)
+    SELECT ?,?,?,?,?,?,?,?,1 WHERE NOT EXISTS
       (SELECT 1 FROM pct_cases WHERE user_id=? AND completion_due=1 AND stage<>'wipe_pending')`)
     .bind(id, user, ref, state.stage, JSON.stringify(state), JSON.stringify({ type: 'case_created', actor: user }), t, t, user).run();
   if (!res.meta.changes) {
@@ -52,16 +53,25 @@ export async function createCase(db, user, state, requestId) {
 export async function save(db, row, actor, type, detail = {}, notify = false) {
   const t = nowSec();
   const ev = { type, actor, notify: notify ? 1 : 0, ...detail };
+  row.state.team_updates = pendingTeamUpdates(row.state);
   const res = await db.prepare(`UPDATE pct_cases SET stage=?,state_json=?,revision=revision+1,
-    completion_due=?,event_json=?,updated_at=? WHERE id=? AND revision=? AND stage<>'wipe_pending' RETURNING revision`)
+    completion_due=?,event_json=?,updated_at=?,team_updates_indexed=1
+    WHERE id=? AND revision=? AND stage<>'wipe_pending' RETURNING revision`)
     .bind(row.state.stage, JSON.stringify(row.state), outstandingCompletion(row.state) ? 1 : 0,
       JSON.stringify(ev), t, row.id, row.revision).first();
   ensure(res?.revision === row.revision + 1, 'The case changed. Refresh it and try again.', 409, 'case_changed');
   return { ...row, stage: row.state.stage, updated_at: t, revision: row.revision + 1 };
 }
 
-export const timeline = async (db, id) => (await db.prepare(`SELECT event_type,created_at
+export const timeline = async (db, id) => (await db.prepare(`SELECT revision,event_type,created_at
   FROM pct_events WHERE case_id=? ORDER BY revision DESC LIMIT 60`).bind(id).all()).results;
+
+export async function markClientEventsSeen(db, row, revision) {
+  ensure(Number.isSafeInteger(revision) && revision >= 0 && revision <= row.revision,
+    'Invalid activity position.', 422, 'invalid_revision');
+  await db.prepare(`UPDATE pct_cases SET client_seen_revision=MAX(client_seen_revision,?)
+    WHERE id=? AND user_id=? AND stage<>'wipe_pending'`).bind(revision,row.id,row.user_id).run();
+}
 
 export async function adminList(db, offset) {
   const rows = await db.prepare(`SELECT id,public_ref,stage,revision FROM pct_cases
@@ -90,8 +100,34 @@ export async function redeemAdminLink(db, token, user) {
   return row.case_id;
 }
 
-export async function claimNotification(db) {
-  const t = nowSec(), lease = uid('lease');
+async function claimTeamUpdate(db,t,lease) {
+  const old = (await db.prepare(`SELECT id,revision,state_json FROM pct_cases
+    WHERE team_updates_indexed=0 AND stage<>'wipe_pending' LIMIT 4`).all()).results;
+  if (old.length) await db.batch(old.map(row => {
+    const state=JSON.parse(row.state_json);
+    state.team_updates=pendingTeamUpdates(state);
+    return db.prepare(`UPDATE pct_cases SET state_json=?,team_updates_indexed=1
+      WHERE id=? AND revision=? AND team_updates_indexed=0 AND stage<>'wipe_pending'`)
+      .bind(JSON.stringify(state),row.id,row.revision);
+  }));
+  const row=await db.prepare(`UPDATE pct_team_updates SET lease_token=?,lease_until=?
+    WHERE (case_id,request_key)=(SELECT w.case_id,w.request_key FROM pct_team_updates w
+      WHERE w.notified_at IS NULL AND w.due_at>? AND w.due_at<=? AND (w.lease_until IS NULL OR w.lease_until<=?)
+      AND EXISTS(SELECT 1 FROM pct_cases WHERE id=w.case_id AND stage<>'wipe_pending')
+      ORDER BY w.due_at,w.case_id,w.request_key LIMIT 1)
+    RETURNING case_id,request_key,kind,due_at,(SELECT public_ref FROM pct_cases WHERE id=pct_team_updates.case_id) AS public_ref`)
+    .bind(lease,t+90,t,t+NOTICE_LEAD,t).first();
+  if (!row) return null;
+  const { request_key, ...notice } = row;
+  return { ...notice, id:await reminderId(row.case_id,request_key),type:'team_update_reminder',lease };
+}
+
+export async function claimNotification(db, { timing = false, at = nowSec() } = {}) {
+  const t = at, lease = uid('lease');
+  if (timing) {
+    const reminder=await claimTeamUpdate(db,t,lease);
+    if (reminder) return reminder;
+  }
   const row = await db.prepare(`UPDATE pct_events SET lease_token=?,lease_until=?
     WHERE id=(SELECT id FROM pct_events WHERE notify=1 AND notified_at IS NULL
       AND (lease_until IS NULL OR lease_until<?)
@@ -104,7 +140,17 @@ export async function claimNotification(db) {
     milestone: detail.milestone, amount_cents: detail.amount_cents, version: detail.version, lease };
 }
 
+const reminderId = async (id,key) => 'team:' + await sha256Hex(id+':'+key);
+
 export async function acknowledgeNotification(db, id, lease) {
+  if (typeof id === 'string' && id.startsWith('team:')) {
+    if (!/^team:[a-f0-9]{64}$/.test(id) || !/^lease_[a-f0-9]{32}$/.test(lease || '')) return false;
+    const item=await db.prepare('SELECT case_id,request_key FROM pct_team_updates WHERE lease_token=?').bind(lease).first();
+    if (!item || id !== await reminderId(item.case_id,item.request_key)) return false;
+    const res=await db.prepare(`UPDATE pct_team_updates SET notified_at=?,lease_token=NULL,lease_until=NULL
+      WHERE lease_token=? AND notified_at IS NULL`).bind(nowSec(),lease).run();
+    return res.meta.changes === 1;
+  }
   const res = await db.prepare(`UPDATE pct_events SET notified_at=?,lease_token=NULL,lease_until=NULL
     WHERE id=? AND lease_token=? AND notified_at IS NULL`).bind(nowSec(), id, lease).run();
   return res.meta.changes === 1;

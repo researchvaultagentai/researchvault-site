@@ -1,5 +1,22 @@
 import { acknowledgeNotification, claimNotification } from './repository.js';
 
+const teamTasks = {
+  consultation:'هماهنگی مشاوره',prior_art:'گزارش پیشینه',invention:'بررسی اختراع انتخابی',quote:'آماده‌سازی پیشنهاد قیمت',
+  agreement:'بررسی توافق‌نامه',draft:'آماده‌سازی پیش‌نویس',revision:'بازبینی پیش‌نویس',package:'آماده‌سازی بستهٔ نهایی',
+  filing:'ارسال در ePCT',isa_response:'پاسخ به گزارش ISA',receipt:'بررسی رسید پرداخت',meeting:'درخواست جلسه',message:'پیام مشتری',
+};
+
+function noticeText(n) {
+  if(n.type==='team_update_reminder' && Number.isSafeInteger(n.due_at)) {
+    const due=new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Tehran'}).format(n.due_at*1000);
+    const minutes=Math.max(1,Math.ceil((n.due_at-Date.now()/1000)/60));
+    const time=minutes>=60 ? `${Math.floor(minutes/60)} ساعت و ${minutes%60} دقیقه` : `${minutes} دقیقه`;
+    return `${n.public_ref}\n⏳ ${time} تا موعد به‌روزرسانی\n${teamTasks[n.kind] || 'به‌روزرسانی پرونده'} · ${due} (تهران)`;
+  }
+  const amount=n.amount_cents ? '\nUS$'+(n.amount_cents/100).toFixed(2) : '';
+  return n.public_ref+'\n'+(labels[n.type] || 'پرونده به‌روزرسانی شد.')+(n.version?' · v'+n.version:'')+amount;
+}
+
 const labels={
   consultation_requested:'پرداخت مشاوره تأیید شد؛ درخواست جلسه ثبت شد.',
   payment_confirmed:'پرداخت تأیید شد.',
@@ -28,10 +45,9 @@ export async function deliverPctNotices(env,fetcher=fetch,limit=2) {
   if(!target)return 0;
   let delivered=0;
   for(let i=0;i<limit;i++){
-    const n=await claimNotification(env.PCT_DB);
+    const n=await claimNotification(env.PCT_DB,{timing:env.PCT_RESPONSE_TIMING_ENABLED==='true'});
     if(!n)break;
-    const amount=n.amount_cents ? '\nUS$'+(n.amount_cents/100).toFixed(2) : '';
-    const text=n.public_ref+'\n'+(labels[n.type] || 'پرونده به‌روزرسانی شد.')+(n.version?' · v'+n.version:'')+amount;
+    const text=noticeText(n);
     const res=await fetcher('https://api.telegram.org/bot'+target.token+'/sendMessage',{
       method:'POST',redirect:'manual',signal:AbortSignal.timeout(6500),headers:{'content-type':'application/json'},
       body:JSON.stringify({chat_id:target.chat,text,protect_content:true,disable_web_page_preview:true,
