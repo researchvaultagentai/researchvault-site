@@ -103,7 +103,7 @@ export async function build() {
     await cp(path.join(here, source), path.join(output, 'patent/assets', target));
   }
   await copyEnglishPages();
-  for (const name of ['portal.js', 'admin.js', 'shared.js', 'progress.js', 'workflow.css', 'legacy-theme.css']) {
+  for (const name of ['portal.js', 'admin.js', 'shared.js', 'progress.js', 'case-status.js', 'workflow.css', 'legacy-theme.css']) {
     await write('patent/assets/pct-workflow/' + name, await readFile(path.join(here, 'workflow', name), 'utf8'));
   }
   for (const [route, source] of [['workflow', 'portal.html'], ['case-admin', 'admin.html'], ['filing-guide', 'guide.html']]) {

@@ -79,9 +79,19 @@ function controls(c) {
       <fieldset><legend>Receipt files to share (at least one)</legend>${c.documents.filter(d=>d.category==='filing_receipt').map(d=>`<label class="check"><input type="checkbox" name="receipt_ids" value="${d.id}"> ${esc(d.name)}</label>`).join('') || '<p>Upload a receipt first.</p>'}</fieldset>
       <fieldset><legend>Filed documents to share</legend>${c.documents.filter(d=>d.category==='filed_document').map(d=>`<label class="check"><input type="checkbox" name="document_ids" value="${d.id}"> ${esc(d.name)}</label>`).join('') || '<p>No filed documents uploaded yet.</p>'}</fieldset>${txt('application_number','Official PCT application number','placeholder="PCT/XX2026/000001" maxlength="40"')}
         ${txt('filed_on','Filing date','type="date"')}${check('fees_confirmed','I verified the official fees and filing evidence.')}${btn('Mark filed and await ISA')}</form>`);
-    case 'isa_wait': return card('International search', `<form id="isa-received">${txt('reference','Search report / written opinion reference','maxlength="180"')}
+    case 'isa_wait': {
+      const searchFiles = [
+        ['isa_report','International Search Report (ISR)','report_id'],
+        ['isa_written_opinion','Written Opinion (WO-ISA)','written_opinion_id'],
+      ];
+      const enabled = Array.isArray(c.team_updates);
+      return card('International search', `${enabled ? '<div class="grid">'+searchFiles.map(([category,label])=>upload(category,label,'.pdf')).join('')+'</div>' : ''}
+      <form id="isa-received">${txt('reference','Search report / written opinion reference','maxlength="180"')}
       <label>Agreed response or amendment needed?<select name="response_needed"><option value="no">No</option><option value="yes">Yes</option></select></label>
+      ${enabled ? searchFiles.map(([category,label,name])=>`<label>${label}<select name="${name}"><option value="">No file selected</option>${options(c,category)}</select></label>`).join('') : ''}
+      ${enabled ? '<div class="grid"><label>Official deadline, if stated<input type="date" name="official_due_on"></label><label>Official notice reference for that deadline<input name="official_due_source" maxlength="180"></label></div>' : ''}
       ${btn('Record ISA documents')}</form>`);
+    }
     case 'pct_response': return card('Response and amendments', `<form id="response-done">${txt('reference','Response / amendment reference','maxlength="180"')}${btn('Mark agreed response complete')}</form>`);
     case 'publication_wait': return card('Official publication scheduling', `${upload('publication_notice','Official publication scheduling notice','.pdf')}
       <form id="complete">${pick(c,'document_id','Official notice','publication_notice')}${txt('reference','Official notice reference','maxlength="180"')}
@@ -97,6 +107,10 @@ function render(c) {
     !c.invoices.some(i => i.key === 'pct_ready' && i.status === 'issued') && !c.settlement;
   set(`<section class="card"><p class="case-key">${esc(c.public_ref)}</p><h2>${esc(c.title)}</h2>
     <p>${esc(c.client.name)} · ${esc(c.client.country)}</p><span class="pill">${esc(c.stage_label)}</span></section>
+    ${Array.isArray(c.team_updates) && !['completed','closed_by_agreement','declined'].includes(c.stage) ? card('Post a case update',`
+      <p>The client sees this in their private case. Select the checkbox only when the message reports progress on the current case stage.</p>
+      <form id="team-update"><label>Case update<textarea name="body" minlength="2" maxlength="2000" required></textarea></label>
+      <label class="check"><input type="checkbox" name="progress"> This message gives a progress update on the current stage.</label>${btn('Post to this case')}</form>`) : ''}
     ${controls(c)}${invoices(c)}
     ${c.meeting_requests.filter(m=>m.status==='requested').map(m=>card('Online meeting request',`<p>${esc(m.note||'The client requested a meeting.')}</p>
       <form data-meeting="${m.id}"><label>Reply or meeting details<textarea name="note" maxlength="1000"></textarea></label>${btn('Acknowledge request')}</form>`)).join('')}
@@ -118,6 +132,7 @@ function render(c) {
   const formAction = (selector, name, adapt = () => ({})) =>
     onForm(selector, d => action({ ...Object.fromEntries(d), ...adapt(d), action: name }));
   formAction('#report-authorize','authorize_report',()=>({meeting_completed:true}));
+  formAction('#team-update','post_team_update',d=>({progress:d.has('progress')}));
   formAction('#report-publish','publish_report',d=>({reviewed:true,candidates:d.get('candidates').split(',').map(x=>x.trim()).filter(Boolean)}));
   formAction('#idea-decision','decide_idea',d=>({accepted:d.get('decision')==='accept'}));
   formAction('#review-agreement','review_agreement',d=>({accepted:d.get('decision')==='accept',matches_quote:d.has('matches_quote')}));
