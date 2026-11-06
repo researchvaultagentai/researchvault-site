@@ -9,3 +9,16 @@ service = "researchvault-patent-api"
 [[services]]
 binding = "SUPPORT_SERVICE"
 service = "researchvault-support"
+
+# Keep the existing services in the production override as well.
+[[env.production.services]]
+binding = "PATENT_API"
+service = "researchvault-patent-api"
+
+[[env.production.services]]
+binding = "SUPPORT_SERVICE"
+service = "researchvault-support"
+
+[[env.production.services]]
+binding = "PCT_WORKFLOW"
+service = "researchvault-pct-workflow"

@@ -67,3 +67,50 @@ test('unconfigured and unavailable bindings fail without leaking internal detail
   assert.equal(response.status, 503);
   assert.ok(!(await response.text()).includes('internal test detail'));
 });
+
+test('PCT health checks the private Worker without forwarding credentials or exposing its response', async () => {
+  const request = make('/api/pct/status?case=example', {
+    headers: { cookie: 'patent_session=example-session', authorization: 'Bearer example' },
+  });
+  const response = await onRequest({ request, env: { PCT_WORKFLOW: { fetch: async value => {
+    assert.equal(value.url, ORIGIN + '/api/pct/status');
+    assert.equal(value.method, 'GET');
+    assert.equal(value.headers.get('cookie'), null);
+    assert.equal(value.headers.get('authorization'), null);
+    return Response.json({ enabled: false, internal_detail: 'example' }, {
+      headers: { 'set-cookie': 'internal=example', 'cache-control': 'public' },
+    });
+  } } } });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('set-cookie'), null);
+  assert.deepEqual(await response.json(), { connected: true, enabled: false });
+});
+
+test('PCT health distinguishes a disabled production Worker from an unavailable or test Worker', async () => {
+  const request = make('/api/pct/status');
+  for (const binding of [
+    undefined,
+    { fetch: async () => { throw new Error('internal test detail'); } },
+    { fetch: async () => Response.json({ enabled: false }, { status: 403 }) },
+    { fetch: async () => new Response('not JSON') },
+    { fetch: async () => Response.json({ enabled: 'false' }) },
+    { fetch: async () => Response.json({ enabled: true, test_mode: true }) },
+  ]) {
+    const response = await onRequest({ request, env: { PCT_WORKFLOW: binding } });
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { connected: false, enabled: false });
+  }
+});
+
+test('only a production, same-origin GET can reach the PCT binding', async () => {
+  let calls = 0;
+  const env = { PCT_WORKFLOW: { fetch: async () => { calls++; return new Response(); } } };
+  for (const [request, status] of [
+    [new Request('https://preview.researchvault-patent.pages.dev/api/pct/status'), 403],
+    [make('/api/pct/status', { headers: { origin: 'https://other.example' } }), 403],
+    [make('/api/pct/status', { method: 'POST', headers: { origin: ORIGIN } }), 405],
+    [make('/api/pct/cases', { method: 'POST', headers: { origin: ORIGIN } }), 503],
+  ]) assert.equal((await onRequest({ request, env })).status, status);
+  assert.equal(calls, 0);
+});
