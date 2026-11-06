@@ -219,6 +219,7 @@ function activeWorkerSecrets(run, conf, expected) {
     hasNotificationToken:Boolean(get('PCT_TELEGRAM_NOTIFY_TOKEN','secret_text')),
     hasAdmin:Boolean(get('PCT_TELEGRAM_ADMIN_IDS','secret_text')),
     wipeEnabled:get('PCT_WIPE_ENABLED','plain_text')?.text==='true',
+    responseTimingEnabled:get('PCT_RESPONSE_TIMING_ENABLED','plain_text')?.text==='true',
   };
 }
 
@@ -267,6 +268,22 @@ export async function enableWipe(directory,{run=command}={}) {
   console.log('PCT case wipe is enabled for the private Telegram administrator. Enrollment remains disabled.');
 }
 
+export async function enableResponseTiming(directory,{run=command}={}) {
+  const {conf,expected}=await installedPrivateConfig(directory);
+  const current=activeWorkerSecrets(run,conf,expected);
+  check(current.hasAdmin,'Connect the private Telegram administrator before enabling response timing.');
+  check(run(['d1','migrations','apply','PCT_DB','--remote'],conf).status===0,
+    'Could not apply the response timing schema to the dedicated PCT database.');
+  const deploy=['deploy','--keep-vars','--var','PCT_RESPONSE_TIMING_ENABLED:true'];
+  if (current.wipeEnabled) deploy.push('--var','PCT_WIPE_ENABLED:true');
+  check(run(deploy,conf).status===0,
+    'Could not deploy the response timing Worker. Enrollment was not opened.');
+  const deployed=activeWorkerSecrets(run,conf,expected);
+  check(deployed.responseTimingEnabled && deployed.hasAdmin && (!current.wipeEnabled || deployed.wipeEnabled),
+    'The active response timing and existing case wipe configuration could not be verified.');
+  console.log('PCT response timing is enabled. Enrollment remains disabled.');
+}
+
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const [mode, ...args] = process.argv.slice(2);
   try {
@@ -277,6 +294,7 @@ if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === imp
       admin:process.env.PCT_TELEGRAM_ADMIN_ID, token:process.env.PCT_TELEGRAM_NOTIFY_TOKEN,
     });
     else if (mode === 'enable-wipe' && args.length === 1) await enableWipe(args[0]);
-    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install, connect-admin or enable-wipe with PRIVATE_DIRECTORY.');
+    else if (mode === 'enable-response-timing' && args.length === 1) await enableResponseTiming(args[0]);
+    else throw new Error('Use prepare or bootstrap with UNDERTAKING.pdf AGREEMENT.docx PRIVATE_DIRECTORY; or install, connect-admin, enable-wipe or enable-response-timing with PRIVATE_DIRECTORY.');
   } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

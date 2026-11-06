@@ -12,6 +12,8 @@ import { sha256Hex } from '../../patent-api/src/security.js';
 import { deliverPctNotices } from '../src/notifications.js';
 import { quoteBreakdown } from '../src/state.js';
 import { confirmWipe, lockCaseUpload, unlockCaseUpload } from '../src/wipe.js';
+import { claimNotification, acknowledgeNotification } from '../src/repository.js';
+import { UPDATE_WINDOW, NOTICE_LEAD } from '../src/team-updates.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here,'../..');
 const ORIGIN='http://127.0.0.1:9072';
@@ -109,6 +111,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0002_accounts.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0003_filing_consent_evidence.sql'),'utf8'));
   await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0004_case_wipe.sql'),'utf8'));
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0005_team_updates.sql'),'utf8'));
   const identityDb=await mf.getD1Database('DB','auth');
   await schema(identityDb,authSql);
   const files=await mf.getR2Bucket('PCT_STORE','pct');
@@ -335,7 +338,20 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
     const official=await req(C+'/documents/'+receipt.id,{cookie:client,raw:true});
     assert.equal(await sha256Hex(await official.arrayBuffer()),await sha256Hex(pdf));
     assert.equal((await read()).stage,'isa_wait');
-    await act('isa_received',{reference:'Synthetic ISA notice',response_needed:true});
+    assert.deepEqual((await read()).team_updates,[]);
+    const report=await file('isa_report','search-report.pdf',pdf);
+    const opinion=await file('isa_written_opinion','written-opinion.pdf',pdf);
+    await req(C+'/documents/'+report.id,{cookie:client,expected:404});
+    await act('isa_received',{reference:'Synthetic ISA notice',response_needed:true,report_id:report.id,
+      written_opinion_id:opinion.id,official_due_on:filingDate,official_due_source:'Synthetic official notice'});
+    const searched=await read();
+    assert.equal(searched.team_updates[0].kind,'isa_response');
+    assert.equal(searched.isa.deadline.date,filingDate);
+    assert.ok(searched.documents.some(d=>d.id===opinion.id));
+    assert.ok(searched.events.some(e=>e.event_type==='isa_received' && e.revision>searched.client_seen_revision));
+    await post(C+'/seen',{revision:searched.revision+1},client,{expected:422});
+    await post(C+'/seen',{revision:searched.revision},client);
+    assert.equal((await read()).client_seen_revision,searched.revision);
     await act('response_done',{reference:'Synthetic response'});
     const notice=await file('publication_notice','notice.pdf',pdf);
     await act('complete',{document_id:notice.id,reference:'Synthetic notice reference',publication_date:filingDate,
@@ -445,7 +461,7 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   assert.ok(await files.get(retained));
   assert.ok(await files.get(nearPrefix));
   assert.ok(await files.get(vars.PCT_UNDERTAKING_KEY));
-  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes']) {
+  for (const table of ['pct_events','pct_admin_links','pct_signature_challenges','pct_verified_payment_refs','pct_case_wipes','pct_team_updates']) {
     assert.equal((await db.prepare(`SELECT count(*) AS n FROM ${table} WHERE case_id=?`).bind(target).first()).n,0,table);
   }
   assert.equal(await db.prepare('SELECT id FROM pct_cases WHERE id=?').bind(target).first(),null);
@@ -453,4 +469,26 @@ test('real Workers: isolated email OTP, signed contract, document gates, ISA and
   assert.equal((await req(waived.C,{cookie:pwdCookie})).stage,'closed_by_agreement');
   await assert.rejects(db.prepare('INSERT INTO pct_verified_payment_refs VALUES(?,?,?,?)')
     .bind(alreadyPaid,waived.id,'consultation',1).run(),/pct_payment_already_consumed/);
+
+  const newId='pct_'+'3'.repeat(24), startAt=Math.floor(Date.now()/1000)-1;
+  const existing={stage:'pct_drafting',start_requested_at:startAt,invoices:{},documents:[],messages:[]};
+  await db.prepare(`INSERT INTO pct_cases(id,user_id,public_ref,stage,state_json,event_json,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?)`).bind(newId,'user-test-clock','PCT-2026-3333333333',existing.stage,JSON.stringify(existing),
+    JSON.stringify({type:'case_created',actor:'synthetic'}),startAt,startAt).run();
+  const near=startAt+UPDATE_WINDOW-NOTICE_LEAD;
+  assert.notEqual((await claimNotification(db,{timing:true,at:near-1}))?.type,'team_update_reminder');
+  const attempts=await Promise.all([claimNotification(db,{timing:true,at:near}),claimNotification(db,{timing:true,at:near})]);
+  const reminders=attempts.filter(x=>x?.type==='team_update_reminder');
+  assert.equal(reminders.length,1);
+  const n=reminders[0];
+  assert.equal(n.case_id,newId);
+  assert.equal(n.due_at,startAt+UPDATE_WINDOW);
+  assert.equal(n.kind,'draft');
+  assert.equal(await acknowledgeNotification(db,n.id,'wrong'),false);
+  const retry=await claimNotification(db,{timing:true,at:near+91});
+  assert.equal(retry.id,n.id);
+  assert.notEqual(retry.lease,n.lease);
+  assert.equal(await acknowledgeNotification(db,n.id,n.lease),false);
+  assert.equal(await acknowledgeNotification(db,retry.id,retry.lease),true);
+  assert.notEqual((await claimNotification(db,{timing:true,at:near+100}))?.type,'team_update_reminder');
 });
