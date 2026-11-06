@@ -35,6 +35,9 @@
   const count = gallery.querySelector('[data-pct-count]');
   const media = gallery.querySelector('[data-pct-media]');
   const rotate = gallery.querySelector('[data-pct-rotate]');
+  const video = gallery.querySelector('[data-pct-video]');
+  const videoSlide = video?.closest('[data-pct-slide]');
+  const videoFallback = gallery.querySelector('[data-pct-video-fallback]');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let index = 0;
   let touchStart;
@@ -42,8 +45,19 @@
   let playing = !reducedMotion.matches;
   let hovered = gallery.matches(':hover') && matchMedia('(hover: hover)').matches;
   let onScreen = !('IntersectionObserver' in window);
+  let resumeVideo = false;
+
+  function playVideo() {
+    if (document.hidden || video.error) return;
+    // The native Play control remains available when the browser blocks autoplay.
+    video.play().catch(() => {});
+  }
 
   function step(direction) {
+    if (slides[index] === videoSlide) {
+      resumeVideo = false;
+      video.pause();
+    }
     slides[index].hidden = true;
     index = (index + direction + slides.length) % slides.length;
     const slide = slides[index];
@@ -51,17 +65,24 @@
     slide.hidden = false;
     caption.textContent = slide.dataset.pctSlide;
     count.textContent = (index + 1) + ' / ' + slides.length;
+    const showVideo = slide === videoSlide;
+    media.toggleAttribute('data-pct-video-active', showVideo);
+    if (showVideo) {
+      video.currentTime = 0;
+      video.muted = true;
+      if (playing) playVideo();
+    }
   }
 
   function schedule() {
     clearTimeout(timer);
     const active = playing && !hovered && !touchStart && onScreen && !document.hidden;
     status.setAttribute('aria-live', active ? 'off' : 'polite');
-    if (active) {
+    if (active && slides[index] !== videoSlide) {
       timer = setTimeout(() => {
         step(1);
         schedule();
-      }, 30_000);
+      }, 20_000);
     }
   }
 
@@ -72,6 +93,13 @@
     rotate.title = label + ' and floating lights';
     document.body.toggleAttribute('data-pct-ambient-paused', !playing);
     rotate.toggleAttribute('data-pct-rotating', playing);
+    if (slides[index] === videoSlide) {
+      if (playing) playVideo();
+      else {
+        resumeVideo = false;
+        video.pause();
+      }
+    }
     schedule();
   }
 
@@ -105,7 +133,7 @@
   });
 
   media.addEventListener('pointerdown', event => {
-    if (event.isPrimary && event.pointerType === 'touch') {
+    if (event.isPrimary && event.pointerType === 'touch' && !event.target.closest('.pct-video-frame')) {
       touchStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
       schedule();
     }
@@ -129,7 +157,30 @@
       schedule();
     }, { threshold: .15 }).observe(gallery);
   }
-  document.addEventListener('visibilitychange', schedule);
+  video?.addEventListener('ended', () => {
+    if (!playing || slides[index] !== videoSlide || document.hidden) return;
+    step(1);
+    schedule();
+  });
+  video?.addEventListener('error', () => { videoFallback.hidden = false; });
+  gallery.querySelector('[data-pct-video-retry]')?.addEventListener('click', () => {
+    videoFallback.hidden = true;
+    video.load();
+    playVideo();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (slides[index] === videoSlide) {
+      if (document.hidden) {
+        resumeVideo = !video.paused;
+        if (resumeVideo) video.pause();
+      } else {
+        if (playing && video.ended) step(1);
+        else if (resumeVideo) playVideo();
+        resumeVideo = false;
+      }
+    }
+    schedule();
+  });
   reducedMotion.addEventListener?.('change', () => {
     if (reducedMotion.matches) setPlaying(false);
   });
@@ -174,7 +225,7 @@
     const target = document.elementFromPoint(x, y);
     const surface = target?.closest('[data-pct-illuminate]');
     const bounds = surface?.getBoundingClientRect();
-    const show = target?.closest('main') && !target.closest('a, button, input, select, textarea, [contenteditable]');
+    const show = target?.closest('main') && !target.closest('a, button, video, input, select, textarea, [contenteditable]');
     if (lit !== surface) {
       lit?.removeAttribute('data-pct-lit');
       lit = surface;
