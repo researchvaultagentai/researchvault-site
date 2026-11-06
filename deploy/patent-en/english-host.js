@@ -17,4 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   }, 0);
+  // Existing cases keep their routes; activate new intake only when connected.
+  if (typeof fetch !== 'function') return;
+  const entries = document.querySelectorAll('[data-pct-workflow]');
+  if (!entries.length) return;
+  fetch('/api/pct/status', { credentials: 'same-origin' })
+    .then(r => r.ok ? r.json() : null)
+    .then(status => {
+      if (!status?.enabled) return;
+      for (const link of entries) link.href = '/patent/en/workflow/';
+    }).catch(() => {});
 });

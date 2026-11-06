@@ -67,3 +67,15 @@ test('unconfigured and unavailable bindings fail without leaking internal detail
   assert.equal(response.status, 503);
   assert.ok(!(await response.text()).includes('internal test detail'));
 });
+
+test('only the Google top-level return may cross origins; legacy creation stops when PCT is enabled', async () => {
+  const hits=[];
+  const env={PCT_WORKFLOW:{fetch:async r=>{hits.push(new URL(r.url).pathname);return Response.json({enabled:true});}}};
+  const callback='/api/pct/auth/google/callback';
+  const navigation={'sec-fetch-site':'cross-site','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  assert.equal((await onRequest({request:make(callback,{headers:navigation}),env})).status,200);
+  assert.equal((await onRequest({request:make(callback,{headers:{...navigation,'sec-fetch-mode':'cors'}}),env})).status,403);
+  assert.equal((await onRequest({request:make('/api/pct/cases',{headers:navigation}),env})).status,403);
+  assert.equal((await onRequest({request:make('/api/cases',{method:'POST',headers:{origin:ORIGIN}}),env})).status,409);
+  assert.deepEqual(hits,[callback,'/api/pct/status']);
+});

@@ -21,14 +21,31 @@ export async function onRequest({ request, env }) {
   if (!METHODS.has(request.method)) return failure(405, 'Method not allowed');
   const origin = request.headers.get('origin');
   const fetchSite = request.headers.get('sec-fetch-site');
+  // Google returns through a cross-site top-level GET. The private Worker
+  // checks the short-lived browser state cookie, nonce, PKCE and Google token.
+  const oauthReturn = url.pathname === '/api/pct/auth/google/callback' && request.method === 'GET' &&
+    ['navigate', null].includes(request.headers.get('sec-fetch-mode')) &&
+    ['document', null].includes(request.headers.get('sec-fetch-dest'));
   if ((origin && origin !== PRODUCTION_ORIGIN) ||
-      (fetchSite && !['same-origin', 'none'].includes(fetchSite)) ||
+      (fetchSite && !['same-origin', 'none'].includes(fetchSite) && !oauthReturn) ||
       (!SAFE_METHODS.has(request.method) && origin !== PRODUCTION_ORIGIN)) {
     return failure(403, 'Same-origin request required');
   }
-  if (!env.PATENT_API?.fetch) return failure(503, 'Patent portal is not connected yet');
-
   try {
+    if (url.pathname.startsWith('/api/pct/')) {
+      if (!env.PCT_WORKFLOW?.fetch) {
+        if (url.pathname === '/api/pct/status' && request.method === 'GET') {
+          return Response.json({ enabled: false }, { headers: { 'cache-control': 'no-store' } });
+        }
+        return failure(503, 'The new PCT workflow is not connected yet');
+      }
+      return await env.PCT_WORKFLOW.fetch(request);
+    }
+    if (request.method === 'POST' && url.pathname.replace(/\/$/, '') === '/api/cases' && env.PCT_WORKFLOW?.fetch) {
+      const status = await env.PCT_WORKFLOW.fetch(new Request(new URL('/api/pct/status', url)));
+      if (status.ok && (await status.json()).enabled) return failure(409, 'Open new cases from the upgraded PCT client portal');
+    }
+    if (!env.PATENT_API?.fetch) return failure(503, 'Patent portal is not connected yet');
     if (url.pathname === '/api/international-payments/receipts') {
       return await submitInternationalReceipt(request, env);
     }

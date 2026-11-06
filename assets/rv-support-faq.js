@@ -109,7 +109,7 @@ const SCOPED_ANSWERS = {
   },
   patent_pct: {
     start: {
-      en: 'This is the international PCT service. Create your account, complete the required identity and confidentiality steps, then submit the technical disclosure in the private portal. You can order the Stage 1 patentability and prior-art report on its own; drafting and filing are optional later engagements. PCT filing services cover the international phase only, through its completion; national- or regional-phase entry and prosecution are outside the base agreement.',
+      en: 'For international PCT service, verify your email and acknowledge our signed confidentiality undertaking before uploading invention materials in the private portal. You can order the Stage 1 patentability and prior-art report on its own; drafting and filing are optional later engagements. PCT filing services cover the international phase only, through its completion; national- or regional-phase entry and prosecution are outside the base agreement.',
       fa: 'این بخش خدمات بین‌المللی PCT است. حساب بسازید، مراحل لازم احراز هویت و محرمانگی را تکمیل و افشای فنی را در کارتابل خصوصی ثبت کنید. گزارش مرحله اول ارزیابی اختراع‌پذیری و پیشینه مستقل ارائه می‌شود و تدوین و ثبت، قراردادهای اختیاری بعدی هستند. خدمات ثبت PCT فقط تا پایان مرحله بین‌المللی ارائه می‌شود؛ ورود و پیگیری در فاز ملی یا منطقه‌ای خارج از محدوده قرارداد پایه است.',
     },
     scope: {
@@ -122,6 +122,18 @@ const SCOPED_ANSWERS = {
     pricing: {
       en: 'International Stage 1 is USD 1,111 and can be purchased separately. A revision package requiring a new analysis run after work starts is USD 111. Draft edits before processing and corrections to our mistakes are free. The site lists PCT drafting and filing at USD 3,500–5,500, subject to a separate quotation; official fees and third-party costs are separate. PCT services cover only the international phase through its completion. National- or regional-phase entry and prosecution are outside the base agreement and are not included.',
       fa: 'مرحله اول بین‌المللی ۱۱۱۱ دلار و مستقل از مراحل بعدی است. بسته ویرایش نیازمند اجرای دوباره تحلیل پس از شروع کار ۱۱۱ دلار است؛ ویرایش پیش‌نویس قبل از پردازش و اصلاح خطای ما رایگان است. بازه راهنمای تدوین و ثبت PCT در سایت ۳۵۰۰ تا ۵۵۰۰ دلار، تابع پیش‌فاکتور جداگانه است؛ هزینه رسمی و ثالث جدا هستند. خدمات PCT فقط تا پایان مرحله بین‌المللی است و ورود و پیگیری فاز ملی یا منطقه‌ای در قرارداد پایه ارائه نمی‌شود.',
+    },
+    drafting: {
+      en: 'After your PCT agreement, first payment and filing details, the team starts drafting. Download Word v1.0 from your case, add comments or Track Changes, and return the Word file against that version. Repeat for later versions or request an online meeting. Approval of a draft starts final preparation. See the Filing guide in your portal.',
+      fa: 'بعد از قرارداد PCT، پرداخت اول و تکمیل اطلاعات، تدوین شروع می‌شود. نسخه Word را از کارتابل دانلود کنید، کامنت یا Track Changes بگذارید و همان‌جا برگردانید. می‌توانید درخواست جلسه بدهید. تأیید پیش‌نویس یعنی شروع ساخت بسته نهایی. راهنمای فایلینگ در کارتابل هست.',
+    },
+    authorization: {
+      en: 'When the final package is ready, settle the filing invoice. Review the approval copy and authorize that exact version in ePCT with the checkbox and new email code. This locks that version and unlocks the final files. After filing, download the official ePCT receipt and filed documents in the case. Use official ePCT case access; keep your WIPO sign-in details private.',
+      fa: 'وقتی بسته نهایی آماده شد صورتحساب فایلینگ را تسویه کنید. نسخه بازبینی را مطالعه و رضایت ارسال همان نسخه به ePCT را با تیک و کد ایمیل ثبت کنید. نسخه قفل می‌شود و فایل‌های نهایی باز می‌شوند. بعد از ارسال، رسید رسمی و اسناد را از همان پرونده دانلود کنید. دسترسی ePCT را از مسیر رسمی واگذار کنید.',
+    },
+    timing: {
+      en: 'Filing package preparation typically takes 7–25 days after the prerequisites are complete. An agreed response or amendment targets up to 7 days after the team has the materials needed. Official ISA and WIPO processing time is separate. The completion fee is due after agreed work and the official notice confirming the scheduled publication date.',
+      fa: 'تهیه بسته معمولاً ۷ تا ۲۵ روز پس از تکمیل پیش‌نیازها و پاسخ یا اصلاح توافق‌شده تا ۷ روز پس از دریافت مدارک لازم زمان می‌برد. انتظار ISA یا WIPO جداست. قسط تکمیل پس از انجام کار توافق‌شده و اعلام رسمی تاریخ برنامه‌ریزی‌شده انتشار فعال می‌شود.',
     },
     human: {
       en: 'Contact the international PCT agent on Telegram: @Ata_Mahmoudinezhad. Keep confidential invention documents in your private case portal.',
@@ -149,6 +161,11 @@ export function supportLinks(scope = 'legacy') {
 
 export function scopedGuideAnswer(text, language, scope) {
   if (!isSupportScope(scope)) return null;
+  if (scope === 'patent_pct') {
+    if (/final (?:filing |submission )?(?:approval|consent|authori[sz]ation)|ePCT|filing receipt|رضایت نهایی|رسید.{0,10}(?:ارسال|فایلینگ)/iu.test(text)) return faqAnswer('authorization',language,scope);
+    if (/draft|version|word comments|track changes|online meeting|پیش[\s‌-]*نویس|کامنت|جلسه آنلاین/iu.test(text)) return faqAnswer('drafting',language,scope);
+    if (/timeline|how long|\bISA\b|when.{0,15}publication|زمان[\s‌-]*بندی|چقدر طول/iu.test(text)) return faqAnswer('timing',language,scope);
+  }
   if (scope === 'patent_pct' && /(?:national|regional|international)[ -]+phase|فاز[\s‌]*(?:ملی|منطقه)|مرحله[\s‌]*بین[\s‌]*المللی/iu.test(text)) {
     return faqAnswer('scope', language, scope);
   }

@@ -1,0 +1,331 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+import { build } from 'esbuild';
+import { Miniflare } from 'miniflare';
+import { PDFDocument } from 'pdf-lib';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { putObject } from '../src/files.js';
+import { sha256Hex } from '../../patent-api/src/security.js';
+import { deliverPctNotices } from '../src/notifications.js';
+import { quoteBreakdown } from '../src/state.js';
+
+const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here,'../..');
+const ORIGIN='http://127.0.0.1:9072';
+const PROD='https://researchvault-patent.pages.dev';
+const INTERNAL='https://pct-internal.invalid/internal/pct/';
+const ACTOR='77777';
+const ADMIN='admin@example.test';
+const USER='inventor@example.test';
+const OTHER='other@example.test';
+const PASS='Test-Report!2468';
+const key='c1'.repeat(32);
+const testConfig={ ENVIRONMENT:'test', PCT_ORIGIN:ORIGIN, PCT_ISOLATED_TEST:'true', PCT_FILE_KEY:key, PCT_TELEGRAM_ADMIN_IDS:ACTOR,PCT_AUTH_PEPPER:'test-pepper-for-isolated-accounts-only-123',PCT_PASSWORD_ENABLED:'true' };
+const opts = { compatibilityDate:'2025-07-18' };
+const bytes = name => readFile(path.join(here,'fixtures',name));
+const X = t=>strToU8(t);
+function makeDocx() {
+  const keys = ['CASE_REF','QUOTE_ID','ISSUE_DATE','PCT_TOTAL','PCT_START','PCT_READY','PCT_COMPLETION',
+    'CLIENT_NAME','CLIENT_ROLE','CLIENT_ADDRESS','CLIENT_EMAIL','CLIENT_REGISTRATION','CLIENT_SIGNATURE','CLIENT_DATE'];
+  const xml = '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+
+    keys.map(k=>'<w:p><w:r><w:t>{{'+k+'}}</w:t></w:r></w:p>').join('')+'</w:body></w:document>';
+  return zipSync({'[Content_Types].xml': X('<Types/>'), 'word/document.xml':X(xml),
+    'word/media/image1.png':Uint8Array.of(137,80,78,71,13,10,26,10)});
+}
+async function plainPdf() {
+  const pdf=await PDFDocument.create(), page=pdf.addPage();
+  page.drawText('Synthetic fixture only - no official or personal data');
+  return pdf.save();
+}
+const bundle=async entry=>(await build({entryPoints:[path.join(root,entry)],bundle:true,format:'esm',
+  platform:'browser',write:false,logLevel:'error'})).outputFiles[0].text;
+const module=(name,contents,extra={})=>({name,...opts,modules:[{type:'ESModule',path:name+'.mjs',contents}],...extra});
+async function schema(db, sql) {
+  const statements=sql.trim().split(/;\s*(?=(?:CREATE|PRAGMA|ALTER|$))/).map(s=>s.trim()).filter(Boolean);
+  await db.batch(statements.map(s=>db.prepare(s)));
+}
+function readJson(res) { return res.json().catch(()=>null); }
+
+test('quote boundaries and instalments use cents with the agreed cap', () => {
+  for (const [price,start,ready,final] of [[350000,119000,178500,52500],[500000,170000,255000,75000],[550000,190000,285000,75000],[500011,170004,255007,75000]]) {
+    assert.deepEqual(quoteBreakdown(price),{total:price,start,ready,completion:final,currency:'USD'});
+  }
+  assert.throws(()=>quoteBreakdown(349999));
+  assert.throws(()=>quoteBreakdown(550001));
+});
+
+test('real Workers: isolated email OTP, signed contract, document gates, ISA and final settlement', {timeout:55000}, async t=>{
+  const [workflow,auth,sql,authSql,pdf,locked,empty,video]=await Promise.all([
+    bundle('pct-workflow/src/index.js'),bundle('patent-api/src/index-b2.js'),
+    readFile(path.join(root,'pct-workflow/migrations/0001_workflow.sql'),'utf8'),
+    readFile(path.join(root,'patent-api/migrations/0001_init.sql'),'utf8'),
+    plainPdf(),bytes('locked-report.pdf'),bytes('permissions-only.pdf'),bytes('sample.mp4'),
+  ]);
+  const docx=makeDocx(), mail=new Map();
+  const vars={...testConfig, PCT_UNDERTAKING_KEY:'pct-workflow/legal/test-undertaking.pdf',PCT_UNDERTAKING_VERSION:'TEST-1',
+    PCT_UNDERTAKING_SHA256:await sha256Hex(pdf), PCT_AGREEMENT_KEY:'pct-workflow/legal/test-agreement.docx',
+    PCT_AGREEMENT_VERSION:'TEST-PCT-3', PCT_AGREEMENT_SHA256:await sha256Hex(docx)};
+  const edge=`export default {fetch(req,env){const p=new URL(req.url).pathname;
+    return p.startsWith('/api/pct/')||p.startsWith('/internal/pct/')?env.PCT.fetch(req):env.AUTH.fetch(req)}}`;
+  const mf=new Miniflare({workers:[
+    module('edge',edge,{serviceBindings:{PCT:'pct',AUTH:'auth'}}),
+    module('pct',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},bindings:vars}),
+    module('prod-guard',workflow,{d1Databases:{PCT_DB:'test-cases'},r2Buckets:{PCT_STORE:'test-files'},serviceBindings:{PATENT_API:'auth'},
+      bindings:{...vars,ENVIRONMENT:'production',PCT_ORIGIN:PROD,PCT_ENABLED:'true'}}),
+    module('auth',auth,{d1Databases:{DB:'test-identity'},bindings:{ENVIRONMENT:'test',ADMIN_EMAILS:ADMIN,OTP_PEPPER:'test-otp-pepper',
+      SESSION_PEPPER:'test-session-pepper',RESEND_API_KEY:'test-key'},outboundService:async req=>{
+        assert.equal(req.url,'https://api.resend.com/emails');
+        const b=await req.json(), email=b.to[0];
+        assert.ok(email.endsWith('@example.test'));
+        mail.set(email,b.html.match(/>(\d{6})<\//)[1]);
+        return Response.json({id:'synthetic-delivery'});
+      }}),
+  ]});
+  t.after(()=>mf.dispose());
+  const db=await mf.getD1Database('PCT_DB','pct');
+  await schema(db,sql);
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0002_accounts.sql'),'utf8'));
+  await schema(db,await readFile(path.join(root,'pct-workflow/migrations/0003_filing_consent_evidence.sql'),'utf8'));
+  const identityDb=await mf.getD1Database('DB','auth');
+  await schema(identityDb,authSql);
+  const files=await mf.getR2Bucket('PCT_STORE','pct');
+  await putObject({PCT_STORE:files,PCT_FILE_KEY:key},vars.PCT_UNDERTAKING_KEY,pdf);
+  await putObject({PCT_STORE:files,PCT_FILE_KEY:key},vars.PCT_AGREEMENT_KEY,docx);
+
+  async function req(p,{method='GET',cookie,body,grant,expected=200,raw=false,origin=ORIGIN,worker}={}){
+    const h={...(cookie?{cookie}:{}),...(grant?{'x-pct-admin-link':grant}:{}),...(method==='POST'?{origin}:{}),
+      ...(body && !(body instanceof FormData)?{'content-type':'application/json'}:{})};
+    const init={method,headers:h,body:body instanceof FormData?body:body?JSON.stringify(body):undefined};
+    const res=worker?await worker.fetch(origin+p,init):await mf.dispatchFetch(origin+p,init);
+    assert.equal(res.status,expected,p+': '+(res.status===expected?'':await res.clone().text()));
+    return raw?res:readJson(res);
+  }
+  const post=(p,body,cookie,extra={})=>req(p,{method:'POST',body,cookie,...extra});
+  async function otp(email,cookie) {
+    const v=await post('/api/auth/request-otp',{destination:email,channel:'email'},cookie);
+    return {challenge_id:v.challenge_id,code:mail.get(email)};
+  }
+  async function login(email) {
+    const r=await post('/api/auth/verify-otp',await otp(email),null,{raw:true});
+    const cookie=r.headers.get('set-cookie').split(';')[0];
+    assert.ok(cookie.startsWith('patent_session='));
+    await r.text();
+    return cookie;
+  }
+  async function bot(route,body={},actor=ACTOR,expected=200) {
+    const res=await mf.dispatchFetch(INTERNAL+route,{method:'POST',headers:{'x-pct-telegram-actor':actor,'content-type':'application/json'},body:JSON.stringify(body)});
+    assert.equal(res.status,expected,route+': '+(res.status===expected?'':await res.clone().text()));
+    return res.json();
+  }
+  async function grantCase(id,admin) {
+    const link=await bot('link',{case_id:id});
+    const grant=new URL(link.url).hash.slice(1);
+    await post('/api/pct/admin/redeem',{token:grant},admin);
+    await post('/api/pct/admin/redeem',{token:grant},admin,{expected:403});
+    return grant;
+  }
+  const upload=(p,cookie,category,name,buffer,grant,password,expected=201)=>{
+    const body=new FormData();
+    body.append('category',category);body.append('file',new Blob([buffer]),name);
+    if(password)body.append('password',password);
+    return post(p,body,cookie,{grant,expected});
+  };
+  const status=await req('/api/pct/status');
+  assert.deepEqual(status,{enabled:true,test_mode:true});
+  await req('/api/pct/cases',{expected:401});
+  const client=await login(USER), admin=await login(ADMIN), other=await login(OTHER);
+  const nda=await req('/api/pct/undertaking',{cookie:client});
+  const start = {request_id:'synthetic-case-first-001',title:'Synthetic actuator patent',name:'Test Inventor',country:'Canada',
+    order_version:nda.order_version,accepted:true};
+  await post('/api/pct/cases',start,client,{expected:403});
+  const ndadownload=await req('/api/pct/undertaking/pdf',{cookie:client,raw:true});
+  assert.equal(await sha256Hex(await ndadownload.arrayBuffer()),nda.sha256);
+  await post('/api/pct/undertaking',{accepted:true,version:nda.version,sha256:'bad'},client,{expected:422});
+  await post('/api/pct/undertaking',{accepted:true,version:nda.version,sha256:nda.sha256},client);
+  assert.deepEqual(await req('/api/pct/auth/options'),{google:false,password:true});
+  const before=(await req('/api/pct/auth/me',{cookie:client})).user;
+  const password='Synthetic-Only-Password-525!';
+  const saved=await post('/api/pct/auth/password/set',{email:USER,password,...await otp(USER,client)},null,{raw:true});
+  const savedCookie=saved.headers.get('set-cookie').split(';')[0];await saved.text();
+  assert.equal((await req('/api/pct/auth/me',{cookie:savedCookie})).user.id,before.id);
+  await post('/api/pct/auth/password/login',{email:USER,password:'Incorrect synthetic password'},null,{expected:401});
+  const pwdResponse=await post('/api/pct/auth/password/login',{email:USER,password},null,{raw:true});
+  const pwdCookie=pwdResponse.headers.get('set-cookie').split(';')[0];await pwdResponse.text();
+  assert.equal((await req('/api/pct/auth/me',{cookie:pwdCookie})).user.id,before.id);
+  const credential=await db.prepare('SELECT password_hash,password_salt FROM pct_accounts WHERE id=?').bind(before.id).first();
+  assert.ok(credential.password_salt && credential.password_hash && credential.password_hash!==password);
+  await bot('list',{},'10000',403);
+  await req('/api/pct/cases',{cookie:client,origin:PROD,expected:404});
+
+  async function firstSteps(request_id, choice='original', checkFiles=false) {
+    const c=await post('/api/pct/cases',{...start,request_id},client,{expected:201}), id=c.id;
+    const C='/api/pct/cases/'+id, M='/api/pct/admin/cases/'+id;
+    const g=await grantCase(id,admin);
+    const act=(action,fields={},expected=200)=>post(M+'/action',{action,...fields},admin,{grant:g,expected});
+    const customer=(action,fields={},expected=200)=>post(C+'/action',{action,...fields},client,{expected});
+    const read=()=>req(C,{cookie:client});
+    const pay=milestone=>act('simulate_payment',{milestone});
+    const file=(category,name,buf,password,expected=201)=>upload(M+'/documents',admin,category,name,buf,g,password,expected);
+    assert.equal(c.stage,'consultation_payment');
+    if(checkFiles) {
+      assert.equal((await post('/api/pct/cases',{...start,request_id},client,{expected:201})).id,id);
+      await req(C,{cookie:other,expected:404});
+      await req(M,{cookie:client,grant:g,expected:403});
+      await req(M,{cookie:admin,expected:403});
+      await upload(C+'/documents',client,'disclosure','draft.docx',docx);
+      await upload(C+'/documents',client,'disclosure','test.mp4',video);
+      await customer('submit_receipt',{milestone:'consultation',method:'usdt_trc20',reference:'b'.repeat(64)});
+      assert.equal((await read()).invoices[0].receipt_pending,true);
+      assert.equal((await read()).stage,'consultation_payment');
+      const prodWorker=await mf.getWorker('prod-guard');
+      await post(M+'/action',{action:'simulate_payment',milestone:'consultation'},admin,
+        {worker:prodWorker,origin:PROD,grant:g,expected:403});
+    }
+    assert.equal((await pay('consultation')).meeting.status,'requested');
+    await pay('consultation');
+    await bot('action',{case_id:id,action:'authorize_report',meeting_completed:true});
+    assert.equal((await pay('report_start')).stage,'report_work');
+    if(checkFiles) {
+      await file('report_pdf','unlocked.pdf',pdf,PASS,422);
+      await file('report_pdf','permissions.pdf',empty,PASS,422);
+      await file('report_pdf','bad-password.pdf',locked,'Wrong-Password!000',422);
+    }
+    const lock=await file('report_pdf','locked.pdf',locked,PASS), word=await file('report_docx','report.docx',docx);
+    await act('publish_report',{pdf_id:lock.id,word_id:word.id,candidates:['C2'],reviewed:true});
+    assert.equal((await read()).report.password,undefined);
+    assert.equal((await read()).documents.some(d=>d.id===word.id),false);
+    await req(C+'/documents/'+word.id,{cookie:client,expected:404});
+    assert.ok((await (await req(C+'/documents/'+lock.id,{cookie:client,raw:true})).arrayBuffer()).byteLength);
+    await pay('report_release');
+    assert.equal((await read()).report.password,PASS);
+    assert.equal((await read()).invoices.filter(i=>i.non_refundable).reduce((a,i)=>a+i.amount_cents,0),111100);
+    await customer('choose_idea',{source:choice,candidate:'C2',description:'The final invention includes this actuator arrangement.'});
+    if(choice==='team') {
+      await act('decide_idea',{accepted:true},422);
+      await act('decide_idea',{accepted:true,rights_ref:'Private idea sale reference 1'});
+    } else await bot('action',{case_id:id,action:'decide_idea',accepted:true});
+    const preview=await bot('quote-preview',{case_id:id,total_cents:500000});
+    await bot('action',{case_id:id,action:'quote',revision:preview.revision,total_cents:500000});
+    const terms=await req(C+'/agreement',{cookie:client});
+    const issued=await req(C+'/agreement/download',{cookie:client,raw:true});
+    assert.match(strFromU8(unzipSync(new Uint8Array(await issued.arrayBuffer()))['word/document.xml']),/2,550.00/);
+    const text=await req(C+'/agreement/text',{cookie:client});
+    assert.ok(text.sections.some(s=>s.text==='750.00'));
+    await req(C+'/agreement/provider-signature',{cookie:other,expected:404});
+    const signer={quote_id:terms.quote_id,schedule_sha256:terms.schedule_sha256,accepted:true,signer:'Test Inventor',
+      legal_name:'Test Inventor',role:'Inventor and applicant',address:'123 Test Street, Toronto, Canada'};
+    if(choice==='team'){
+      const signed=await upload(C+'/documents',client,'signed_agreement','signed-copy.pdf',pdf);
+      const submitted=await customer('accept_quote',{...signer,...await otp(USER,client),document_id:signed.id});
+      assert.equal(submitted.stage,'agreement_review');assert.equal(submitted.invoices.some(i=>i.key==='pct_start'),false);
+      await act('review_agreement',{accepted:true,matches_quote:true});
+    }else{
+      assert.equal((await customer('accept_quote',{...signer,...await otp(USER,client)})).engagement.mode,'electronic');
+      const signed=await req(C+'/agreement/signed',{cookie:client,raw:true});
+      assert.match(strFromU8(unzipSync(new Uint8Array(await signed.arrayBuffer()))['word/document.xml']),/Test Inventor/);
+    }
+    await pay('pct_start');
+    const profile={legal_name:'Test Inventor',address:'123 Test Street',country:'Canada',postal_code:'M5V 3A8',
+      role:'inventor_applicant',epct_access:'needs_guidance',epct_consent:true};
+    await customer('filing_profile',{...profile,epct_password:'should not be recorded'},422);
+    assert.equal((await customer('filing_profile',profile)).stage,'pct_start_pending');
+    await bot('action',{case_id:id,action:'start_drafting'});
+    const v1=await file('pct_draft','draft-v1.docx',docx);
+    await req(C+'/documents/'+v1.id,{cookie:client,expected:404});
+    assert.equal((await act('publish_draft',{document_id:v1.id,reviewed:true})).drafts[0].version,'1.0');
+    const feedback=await upload(C+'/documents',client,'pct_feedback','v1-comments.docx',docx);
+    assert.equal((await customer('draft_feedback',{draft_id:v1.id,feedback_id:feedback.id,note:'Please improve claim 2.'})).stage,'pct_draft_revision');
+    const meeting=await customer('request_meeting',{note:'Review the claim with us.'});
+    await customer('request_meeting',{},409);
+    await act('ack_meeting',{meeting_id:meeting.meeting_requests[0].id,note:'We will contact you.'});
+    const v2=await file('pct_draft','draft-v2.docx',docx);
+    await act('publish_draft',{document_id:v2.id,reviewed:true,note:'Second revision.'});
+    await customer('approve_draft',{draft_id:v1.id,confirmed:true},409);
+    assert.equal((await customer('approve_draft',{draft_id:v2.id,confirmed:true})).draft_approval.version,'2.0');
+    const rev=await file('package_review','review.pdf',pdf), final=await file('package_final','final.docx',docx);
+    await act('package_ready',{review_id:rev.id,final_id:final.id,reviewed:true});
+    await req(C+'/documents/'+final.id,{cookie:client,expected:404});
+    await req(C+'/documents/'+rev.id,{cookie:client,expected:404});
+    await req(C+'/filing-consent',{cookie:client,expected:409});
+    assert.equal((await pay('pct_ready')).stage,'pct_filing_consent');
+    assert.ok((await (await req(C+'/documents/'+rev.id,{cookie:client,raw:true})).arrayBuffer()).byteLength);
+    await req(C+'/documents/'+final.id,{cookie:client,expected:404});
+    await bot('action',{case_id:id,action:'start_submission',official_access:true,authorization_on_file:true},ACTOR,409);
+    const consent=await req(C+'/filing-consent',{cookie:client});
+    await customer('authorize_filing',{accepted:true,signer:'Test Inventor',consent_sha256:'bad',final_sha256:consent.final_sha256},409);
+    // The filing consent follows draft review on a later day.
+    await identityDb.prepare('UPDATE patent_otp_challenges SET created_at=created_at-3600 WHERE destination=?').bind(USER).run();
+    const code=await otp(USER,client);
+    const signedConsent={accepted:true,signer:'Test Inventor',consent_sha256:consent.consent_sha256,final_sha256:consent.final_sha256,...code};
+    assert.equal((await customer('authorize_filing',signedConsent)).stage,'pct_authorized');
+    await customer('authorize_filing',signedConsent,409);
+    const evidence=await req(C+'/filing-consent/record',{cookie:client,raw:true});
+    assert.match(await evidence.text(),/Draft: v2.0/);
+    assert.ok((await (await req(C+'/documents/'+final.id,{cookie:client,raw:true})).arrayBuffer()).byteLength);
+    await bot('action',{case_id:id,action:'start_submission',official_access:true,authorization_on_file:true});
+    assert.equal((await read()).stage,'pct_submitting');
+    const receipt=await file('filing_receipt','epct-receipt.pdf',pdf), filed=await file('filed_document','filed-package.docx',docx);
+    await req(C+'/documents/'+receipt.id,{cookie:client,expected:404});
+    const filingDate=new Date().toISOString().slice(0,10);
+    await act('filed',{application_number:'PCT/CA2026/000001',filed_on:filingDate,fees_confirmed:true},422);
+    await act('filed',{application_number:'PCT/CA2026/000001',filed_on:filingDate,fees_confirmed:true,
+      receipt_ids:[receipt.id],document_ids:[filed.id]});
+    const official=await req(C+'/documents/'+receipt.id,{cookie:client,raw:true});
+    assert.equal(await sha256Hex(await official.arrayBuffer()),await sha256Hex(pdf));
+    assert.equal((await read()).stage,'isa_wait');
+    await act('isa_received',{reference:'Synthetic ISA notice',response_needed:true});
+    await act('response_done',{reference:'Synthetic response'});
+    const notice=await file('publication_notice','notice.pdf',pdf);
+    await act('complete',{document_id:notice.id,reference:'Synthetic notice reference',publication_date:filingDate,
+      official_confirmed:true,work_complete:true});
+    assert.equal((await read()).stage,'completion_due');
+    assert.equal((await read()).invoices.find(i=>i.key==='pct_completion').amount_cents,75000);
+    await post('/api/pct/cases',{...start,request_id:request_id+'-blocked'},client,{expected:409});
+    return {read,act,pay,id,C,M,g};
+  }
+
+  const settled=await firstSteps(start.request_id,'original',true);
+  assert.equal((await settled.pay('pct_completion')).stage,'completed');
+  assert.equal((await req(settled.C,{cookie:pwdCookie})).stage,'completed');
+  // The second synthetic case represents a later session outside the OTP rate window.
+  await identityDb.prepare('UPDATE patent_otp_challenges SET created_at=created_at-3600 WHERE destination=?').bind(USER).run();
+  const waived=await firstSteps('synthetic-case-second-002','team');
+  const waivedResult=await waived.act('waive_completion',{reason:'Synthetic settlement confirmed with test client.',agreed:true});
+  assert.equal(waivedResult.stage,'closed_by_agreement');
+  assert.equal(waivedResult.invoices.find(i=>i.key==='pct_completion').status,'waived');
+  assert.equal((await req('/api/pct/cases',{cookie:client})).outstanding_balance,null);
+  assert.equal((await post('/api/pct/cases',{...start,request_id:'synthetic-after-closure-003'},client,{expected:201})).stage,'consultation_payment');
+  const counts=await db.prepare("SELECT count(*) AS n FROM pct_verified_payment_refs").first();
+  assert.equal(counts.n,0);
+  const notify=await bot('notification');
+  assert.ok(notify.notification);
+  assert.equal((await bot('notification-ack',{id:notify.notification.id,lease:notify.notification.lease})).ok,true);
+  let noticePayload;
+  const notificationEnv={PCT_DB:db,ENVIRONMENT:'production',PCT_ENABLED:'true',
+    PCT_TELEGRAM_ADMIN_IDS:ACTOR,PCT_NOTIFY_CHAT_ID:ACTOR,PCT_TELEGRAM_NOTIFY_TOKEN:'123456:synthetic_test_token_only'};
+  assert.equal(await deliverPctNotices({...notificationEnv,ENVIRONMENT:'test'},async()=>{throw new Error('No Telegram in tests');}),0);
+  assert.equal(await deliverPctNotices(notificationEnv,async (_url,init)=>{
+    noticePayload=JSON.parse(init.body);
+    return Response.json({ok:true,result:{message_id:1}});
+  },1),1);
+  assert.equal(noticePayload.chat_id,ACTOR);
+  assert.match(noticePayload.reply_markup.inline_keyboard[0][0].callback_data,/^p2:case:pct_/);
+  assert.ok(!JSON.stringify(noticePayload).includes(USER));
+  const list=await bot('list');
+  assert.ok(list.cases.some(c=>c.stage==='completed'));
+  assert.ok(list.cases.some(c=>c.stage==='closed_by_agreement'));
+  let offset=0,all=[];
+  for(;;){
+    const log=await bot('log',{case_id:settled.id,offset});
+    all.push(...log.entries);
+    if(!log.more)break;
+    offset+=8;
+  }
+  assert.deepEqual(all.map(x=>x.number),Array.from({length:all.length},(_,i)=>i+1));
+  for(const type of ['draft_feedback','draft_approved','online_meeting_requested','filing_authorized','submission_started','filed_awaiting_isa'])
+    assert.ok(all.some(x=>x.type===type),type);
+  assert.ok(all.some(x=>x.type==='draft_approved' && x.version==='2.0'));
+  assert.ok(!JSON.stringify(all).includes('Please improve claim 2.'));
+});

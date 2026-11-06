@@ -9,3 +9,9 @@ service = "researchvault-patent-api"
 [[services]]
 binding = "SUPPORT_SERVICE"
 service = "researchvault-support"
+
+# Enable this binding only after the private PCT service has been provisioned
+# and tested. Do not connect branch previews to production client data.
+# [[services]]
+# binding = "PCT_WORKFLOW"
+# service = "researchvault-pct-workflow"
