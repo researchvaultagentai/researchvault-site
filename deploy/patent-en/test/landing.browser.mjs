@@ -6,7 +6,9 @@ import { build, ORIGIN } from '../build.mjs';
 
 const output = await build();
 const engine = process.argv.includes('--firefox') ? firefox : chromium;
-const browser = await engine.launch();
+// Use the runner's Google Chrome for H.264/AAC playback.
+const channel = engine === chromium && process.env.GITHUB_ACTIONS === 'true' ? 'chrome' : undefined;
+const browser = await engine.launch({ channel });
 const mime = {
   '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript',
   '.webp': 'image/webp', '.png': 'image/png', '.jpg': 'image/jpeg',
