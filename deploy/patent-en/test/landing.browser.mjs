@@ -56,7 +56,24 @@ async function open(options = {}) {
     if (url.pathname === '/support/config') return route.fulfill({ json: { configured: false } });
     const relative = url.pathname.endsWith('/') ? url.pathname + 'index.html' : url.pathname;
     const body = await readFile(path.join(output, relative));
-    await route.fulfill({ contentType: mime[path.extname(relative)], body });
+    const contentType = mime[path.extname(relative)];
+    if (contentType === 'video/mp4') {
+      // Chrome uses byte-range requests when the test seeks near the end.
+      const range = /^bytes=(\d+)-(\d*)$/.exec(route.request().headers().range ?? '');
+      const headers = { 'accept-ranges': 'bytes' };
+      if (range) {
+        const start = Number(range[1]);
+        const end = range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+        if (start > end) {
+          headers['content-range'] = `bytes */${body.length}`;
+          return route.fulfill({ status: 416, headers });
+        }
+        headers['content-range'] = `bytes ${start}-${end}/${body.length}`;
+        return route.fulfill({ status: 206, contentType, headers, body: body.subarray(start, end + 1) });
+      }
+      return route.fulfill({ contentType, headers, body });
+    }
+    await route.fulfill({ contentType, body });
   });
   if (options.blockAutoplay) {
     await page.addInitScript(() => {
